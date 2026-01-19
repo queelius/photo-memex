@@ -1,0 +1,107 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ptk"
+version = "0.1.0"
+description = "Photo Toolkit - AI-powered photo library management"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "spinoza" }
+]
+keywords = ["photos", "ai", "cli", "organization", "faces", "search"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Graphics",
+]
+
+dependencies = [
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "sqlalchemy>=2.0.0",
+    "pillow>=10.0.0",
+    "exifread>=3.0.0",
+    "python-dateutil>=2.8.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0.0",
+]
+
+[project.optional-dependencies]
+video = [
+    "ffmpeg-python>=0.2.0",
+]
+faces = [
+    "face_recognition>=1.3.0",
+    "numpy>=1.24.0",
+    "scikit-learn>=1.3.0",
+]
+embeddings = [
+    "sentence-transformers>=2.2.0",
+    "faiss-cpu>=1.7.0",
+    "numpy>=1.24.0",
+]
+captioning = [
+    "httpx>=0.24.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+all = [
+    "ptk[video]",
+    "ptk[faces]",
+    "ptk[embeddings]",
+    "ptk[captioning]",
+]
+
+[project.scripts]
+ptk = "ptk.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/spinoza/ptk"
+Repository = "https://github.com/spinoza/ptk"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ptk"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["ptk"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

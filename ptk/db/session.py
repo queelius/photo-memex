@@ -10,10 +10,6 @@ from sqlalchemy.engine import Engine
 
 from ptk.db.models import Base
 
-# Import view models to register them with Base.metadata
-# This ensures the view tables are created when init_db is called
-from ptk.views.models import View, ViewAnnotation  # noqa: F401
-
 # Module-level engine and session factory
 _engine: Optional[Engine] = None
 _SessionLocal: Optional[sessionmaker] = None

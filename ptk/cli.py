@@ -609,6 +609,34 @@ def rescan(
 
 
 # =============================================================================
+# 8. ptk mcp
+# =============================================================================
+
+@app.command()
+def mcp(
+    library: Optional[Path] = typer.Option(None, "--library", "-l", help="Library path"),
+) -> None:
+    """Launch MCP server (stdio) for Claude Code integration."""
+    import os
+
+    lib_path = library
+    if lib_path is None:
+        env_path = os.environ.get("PTK_LIBRARY")
+        if env_path:
+            lib_path = Path(env_path)
+
+    if lib_path:
+        _require_library(lib_path)
+    else:
+        _require_library()
+
+    from ptk.core.config import get_config
+    from ptk.mcp.server import run_mcp_server
+
+    run_mcp_server(str(get_config().database_path))
+
+
+# =============================================================================
 # Entry point
 # =============================================================================
 

@@ -4,7 +4,6 @@ This provides a simple, flag-based interface for common queries.
 For complex queries, use raw SQL.
 """
 
-import re
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -25,8 +24,6 @@ class QueryBuilder:
     _uncaptioned: bool = False
     _tags: list[str] = field(default_factory=list)
     _albums: list[str] = field(default_factory=list)
-    _views: list[str] = field(default_factory=list)
-    _fields: list[tuple[str, str, Any]] = field(default_factory=list)  # (field, op, value)
     _limit: Optional[int] = None
     _offset: Optional[int] = None
 
@@ -52,40 +49,6 @@ class QueryBuilder:
     def album(self, name: str) -> "QueryBuilder":
         """Filter by album."""
         self._albums.append(name)
-        return self
-
-    def view(self, name: str) -> "QueryBuilder":
-        """Filter by view (photos that have annotations in this view)."""
-        self._views.append(name)
-        return self
-
-    def field_filter(self, expr: str) -> "QueryBuilder":
-        """Filter by annotation field value.
-
-        Supports: field=value, field>value, field<value, field>=value, field<=value
-
-        Examples:
-            field_filter("decade=1980s")
-            field_filter("people_count>2")
-        """
-        # Parse expression
-        match = re.match(r'^(\w+(?:\.\w+)*)(=|!=|>=|<=|>|<)(.+)$', expr)
-        if not match:
-            raise ValueError(f"Invalid field filter: {expr}")
-
-        field_name, op, value = match.groups()
-
-        # Try to parse value as number
-        try:
-            if '.' in value:
-                value = float(value)
-            else:
-                value = int(value)
-        except ValueError:
-            # Keep as string, strip quotes if present
-            value = value.strip("'\"")
-
-        self._fields.append((field_name, op, value))
         return self
 
     def limit(self, n: int) -> "QueryBuilder":
@@ -142,60 +105,6 @@ class QueryBuilder:
             )
             param = self._add_param(album)
             where.append(f"{alias_a}.name = :{param}")
-
-        # View filters (has annotations in view)
-        for i, view in enumerate(self._views):
-            alias = f"vv{i}"
-            joins.append(
-                f"JOIN view_annotations {alias} ON p.id = {alias}.photo_id "
-                f"AND {alias}.view_name = :{self._add_param(view)}"
-            )
-
-        # Field filters
-        for i, (field_name, op, value) in enumerate(self._fields):
-            alias = f"vf{i}"
-            # Check if field has view prefix (view.family.decade)
-            if '.' in field_name:
-                parts = field_name.split('.')
-                if parts[0] == 'view' and len(parts) >= 3:
-                    view_name = parts[1]
-                    actual_field = '.'.join(parts[2:])
-                else:
-                    view_name = None
-                    actual_field = field_name
-            else:
-                view_name = None
-                actual_field = field_name
-
-            if view_name:
-                joins.append(
-                    f"LEFT JOIN view_annotations {alias} ON p.id = {alias}.photo_id "
-                    f"AND {alias}.view_name = '{view_name}' "
-                    f"AND {alias}.field_name = '{actual_field}'"
-                )
-            else:
-                joins.append(
-                    f"LEFT JOIN view_annotations {alias} ON p.id = {alias}.photo_id "
-                    f"AND {alias}.field_name = '{actual_field}'"
-                )
-
-            # Build comparison
-            if isinstance(value, (int, float)):
-                # Numeric comparison
-                param = self._add_param(value)
-                where.append(
-                    f"CAST(json_extract({alias}.value_json, '$') AS REAL) {op} :{param}"
-                )
-            else:
-                # String comparison (JSON-encoded)
-                import json
-                param = self._add_param(json.dumps(value))
-                if op == '=':
-                    where.append(f"{alias}.value_json = :{param}")
-                elif op == '!=':
-                    where.append(f"({alias}.value_json IS NULL OR {alias}.value_json != :{param})")
-                else:
-                    where.append(f"{alias}.value_json {op} :{param}")
 
         # Assemble SQL
         if joins:

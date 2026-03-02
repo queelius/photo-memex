@@ -1,12 +1,11 @@
 """Tests for the query module - flag-based query building."""
 
 import json
-import pytest
 from datetime import datetime, timezone
 
 from ptk.query.builder import QueryBuilder
 from ptk.query.executor import OutputFormat, QueryResult
-from ptk.db.models import Photo, Tag
+from ptk.db.models import Photo
 
 
 class TestQueryBuilder:
@@ -76,56 +75,6 @@ class TestQueryBuilder:
         assert "a0.name = :p1" in sql
         assert params["p1"] == "Summer 2020"
 
-    def test_view_filter(self):
-        """Filter by view (photos that have annotations)."""
-        builder = QueryBuilder()
-        builder.view("family_v1")
-        sql, params = builder.build()
-
-        assert "JOIN view_annotations vv0" in sql
-        assert "vv0.view_name = :p1" in sql
-        assert params["p1"] == "family_v1"
-
-    def test_field_filter_equality_string(self):
-        """Field filter with string equality."""
-        builder = QueryBuilder()
-        builder.field_filter("decade=1980s")
-        sql, params = builder.build()
-
-        assert "LEFT JOIN view_annotations vf0" in sql
-        assert "vf0.field_name = 'decade'" in sql
-        assert "vf0.value_json = :p1" in sql
-        assert params["p1"] == '"1980s"'  # JSON-encoded string
-
-    def test_field_filter_numeric_gt(self):
-        """Field filter with numeric greater than."""
-        builder = QueryBuilder()
-        builder.field_filter("people_count>2")
-        sql, params = builder.build()
-
-        assert "LEFT JOIN view_annotations vf0" in sql
-        assert "vf0.field_name = 'people_count'" in sql
-        assert "CAST(json_extract(vf0.value_json, '$') AS REAL) > :p1" in sql
-        assert params["p1"] == 2
-
-    def test_field_filter_numeric_gte(self):
-        """Field filter with numeric greater or equal."""
-        builder = QueryBuilder()
-        builder.field_filter("people_count>=3")
-        sql, params = builder.build()
-
-        assert ">= :p1" in sql
-        assert params["p1"] == 3
-
-    def test_field_filter_with_view_prefix(self):
-        """Field filter with explicit view prefix."""
-        builder = QueryBuilder()
-        builder.field_filter("view.family_v1.decade=1990s")
-        sql, params = builder.build()
-
-        assert "vf0.view_name = 'family_v1'" in sql
-        assert "vf0.field_name = 'decade'" in sql
-
     def test_limit(self):
         """Limit results."""
         builder = QueryBuilder()
@@ -146,45 +95,20 @@ class TestQueryBuilder:
     def test_combined_filters(self):
         """Combine multiple filter types."""
         builder = QueryBuilder()
-        builder.favorite().tag("beach").view("family_v1").limit(5)
+        builder.favorite().tag("beach").limit(5)
         sql, params = builder.build()
 
         assert "p.is_favorite = :p1" in sql
         assert "t0.name = :p2" in sql
-        assert "vv0.view_name = :p3" in sql
         assert "LIMIT 5" in sql
         assert params["p1"] is True
         assert params["p2"] == "beach"
-        assert params["p3"] == "family_v1"
 
     def test_chaining_returns_self(self):
         """All filter methods return self for chaining."""
         builder = QueryBuilder()
-        result = builder.favorite().tag("x").album("y").view("z").limit(10)
+        result = builder.favorite().tag("x").album("y").limit(10)
         assert result is builder
-
-    def test_field_filter_invalid_expression(self):
-        """Invalid field expression raises ValueError."""
-        builder = QueryBuilder()
-        with pytest.raises(ValueError, match="Invalid field filter"):
-            builder.field_filter("invalid expression without operator")
-
-    def test_field_filter_float(self):
-        """Field filter with float value."""
-        builder = QueryBuilder()
-        builder.field_filter("confidence>0.85")
-        sql, params = builder.build()
-
-        assert params["p1"] == 0.85
-
-    def test_field_filter_not_equals(self):
-        """Field filter with not equals."""
-        builder = QueryBuilder()
-        builder.field_filter("decade!=1980s")
-        sql, params = builder.build()
-
-        assert "!= :p1" in sql or "IS NULL OR" in sql
-
 
 class TestOutputFormat:
     """Tests for OutputFormat enum."""

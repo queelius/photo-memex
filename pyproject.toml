@@ -44,13 +44,8 @@ faces = [
     "numpy>=1.24.0",
     "scikit-learn>=1.3.0",
 ]
-embeddings = [
-    "sentence-transformers>=2.2.0",
-    "faiss-cpu>=1.7.0",
-    "numpy>=1.24.0",
-]
-captioning = [
-    "httpx>=0.24.0",
+mcp = [
+    "mcp[cli]",
 ]
 dev = [
     "pytest>=7.0.0",
@@ -61,8 +56,7 @@ dev = [
 all = [
     "ptk[video]",
     "ptk[faces]",
-    "ptk[embeddings]",
-    "ptk[captioning]",
+    "ptk[mcp]",
 ]
 
 [project.scripts]

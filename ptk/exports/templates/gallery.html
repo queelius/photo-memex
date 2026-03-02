@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{TITLE}}</title>
+<style>
+/* CSS Reset and base */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; }
+
+/* Header */
+.header { background: #16213e; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #0f3460; position: sticky; top: 0; z-index: 100; }
+.header h1 { font-size: 1.4rem; color: #e94560; }
+.header .stats { font-size: 0.85rem; color: #888; }
+
+/* Layout */
+.container { display: flex; min-height: calc(100vh - 60px); }
+
+/* Sidebar */
+.sidebar { width: 260px; background: #16213e; padding: 1rem; overflow-y: auto; border-right: 1px solid #0f3460; flex-shrink: 0; }
+.sidebar h3 { font-size: 0.8rem; text-transform: uppercase; color: #888; margin: 1rem 0 0.5rem; letter-spacing: 0.05em; }
+.sidebar label { display: block; padding: 0.3rem 0; cursor: pointer; font-size: 0.9rem; }
+.sidebar label:hover { color: #e94560; }
+.sidebar input[type="checkbox"] { margin-right: 0.5rem; accent-color: #e94560; }
+.search-box { width: 100%; padding: 0.5rem; background: #1a1a2e; border: 1px solid #0f3460; color: #e0e0e0; border-radius: 4px; margin-bottom: 0.5rem; }
+.search-box:focus { outline: none; border-color: #e94560; }
+.filter-btn { background: none; border: 1px solid #0f3460; color: #e0e0e0; padding: 0.3rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; margin: 0.2rem; }
+.filter-btn.active { background: #e94560; border-color: #e94560; color: white; }
+.filter-btn:hover { border-color: #e94560; }
+
+/* Grid */
+.grid-container { flex: 1; padding: 1rem; overflow-y: auto; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.grid-item { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 4px; cursor: pointer; background: #16213e; }
+.grid-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.2s; }
+.grid-item:hover img { transform: scale(1.05); }
+.grid-item .favorite-badge { position: absolute; top: 4px; right: 4px; font-size: 1.2rem; }
+.grid-item .caption-badge { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.8)); padding: 0.5rem; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.no-thumb { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: #555; font-size: 2rem; }
+
+/* Lightbox */
+.lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 200; }
+.lightbox.active { display: flex; }
+.lightbox-content { display: flex; width: 100%; height: 100%; }
+.lightbox-image { flex: 1; display: flex; align-items: center; justify-content: center; padding: 2rem; }
+.lightbox-image img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.lightbox-info { width: 350px; background: #16213e; padding: 1.5rem; overflow-y: auto; border-left: 1px solid #0f3460; }
+.lightbox-info h2 { font-size: 1.1rem; margin-bottom: 1rem; word-break: break-all; }
+.lightbox-info .meta-row { display: flex; justify-content: space-between; padding: 0.3rem 0; font-size: 0.85rem; border-bottom: 1px solid #0f3460; }
+.lightbox-info .meta-label { color: #888; }
+.lightbox-info .meta-value { color: #e0e0e0; text-align: right; max-width: 60%; word-break: break-word; }
+.lightbox-info .tags { margin-top: 1rem; }
+.lightbox-info .tag { display: inline-block; background: #0f3460; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; margin: 0.2rem; }
+.lightbox-close { position: absolute; top: 1rem; right: 370px; font-size: 2rem; color: #888; cursor: pointer; z-index: 210; background: none; border: none; }
+.lightbox-close:hover { color: #e94560; }
+.lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); font-size: 2rem; color: #888; cursor: pointer; background: none; border: none; padding: 1rem; z-index: 210; }
+.lightbox-nav:hover { color: #e94560; }
+.lightbox-nav.prev { left: 1rem; }
+.lightbox-nav.next { right: 370px; }
+.file-link { color: #e94560; text-decoration: none; font-size: 0.8rem; word-break: break-all; }
+.file-link:hover { text-decoration: underline; }
+
+/* Pagination */
+.pagination { padding: 1rem; text-align: center; }
+.pagination button { background: #16213e; border: 1px solid #0f3460; color: #e0e0e0; padding: 0.5rem 1rem; margin: 0.2rem; border-radius: 4px; cursor: pointer; }
+.pagination button:hover { border-color: #e94560; }
+.pagination button.active { background: #e94560; border-color: #e94560; }
+.pagination .info { color: #888; font-size: 0.85rem; margin-top: 0.5rem; }
+
+/* Loading */
+.loading { display: flex; align-items: center; justify-content: center; height: 100vh; font-size: 1.2rem; color: #888; }
+.loading .spinner { border: 3px solid #0f3460; border-top: 3px solid #e94560; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin-right: 1rem; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .lightbox-info { width: 100%; position: absolute; bottom: 0; height: 40%; }
+  .lightbox-close { right: 1rem; }
+  .lightbox-nav.next { right: 1rem; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+}
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">
+  <div class="spinner"></div>
+  Loading photo library...
+</div>
+
+<div id="app" style="display:none">
+  <div class="header">
+    <h1>{{TITLE}}</h1>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <div class="container">
+    <div class="sidebar">
+      <input type="text" class="search-box" id="search" placeholder="Search captions, filenames...">
+
+      <h3>Quick Filters</h3>
+      <div>
+        <button class="filter-btn" id="btn-favorites" onclick="toggleFavorites()">Favorites</button>
+        <button class="filter-btn" id="btn-videos" onclick="toggleVideos()">Videos</button>
+      </div>
+
+      <h3>Tags</h3>
+      <div id="tag-filters"></div>
+
+      <h3>Albums</h3>
+      <div id="album-filters"></div>
+    </div>
+
+    <div class="grid-container">
+      <div class="grid" id="grid"></div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div>
+
+  <div class="lightbox" id="lightbox">
+    <button class="lightbox-close" onclick="closeLightbox()">&times;</button>
+    <button class="lightbox-nav prev" onclick="navLightbox(-1)">&lsaquo;</button>
+    <button class="lightbox-nav next" onclick="navLightbox(1)">&rsaquo;</button>
+    <div class="lightbox-content">
+      <div class="lightbox-image" id="lightbox-image"></div>
+      <div class="lightbox-info" id="lightbox-info"></div>
+    </div>
+  </div>
+</div>
+
+<script type="application/x-sqlite3" id="db-data">{{DB_BASE64}}</script>
+
+<script>
+// sql.js CDN
+var SQL_JS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js";
+
+var db = null;
+var currentPhotos = [];
+var currentPage = 0;
+var PAGE_SIZE = 60;
+var filters = { search: "", favorites: false, videos: false, tags: [], albums: [] };
+var currentLightboxIndex = -1;
+
+async function init() {
+  // Load sql.js
+  var script = document.createElement("script");
+  script.src = SQL_JS_CDN;
+  document.head.appendChild(script);
+
+  await new Promise(function(resolve, reject) {
+    script.onload = resolve;
+    script.onerror = function() { reject(new Error("Failed to load sql.js from CDN")); };
+  });
+
+  var SQL = await initSqlJs({
+    locateFile: function(file) { return "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/" + file; }
+  });
+
+  // Decode embedded DB
+  var b64 = document.getElementById("db-data").textContent.trim();
+  var binary = atob(b64);
+  var bytes = new Uint8Array(binary.length);
+  for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+  db = new SQL.Database(bytes);
+
+  // Initialize UI
+  loadFilters();
+  applyFilters();
+  updateStats();
+
+  document.getElementById("loading").style.display = "none";
+  document.getElementById("app").style.display = "";
+
+  // Search handler
+  var searchTimeout;
+  document.getElementById("search").addEventListener("input", function(e) {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(function() {
+      filters.search = e.target.value;
+      currentPage = 0;
+      applyFilters();
+    }, 300);
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener("keydown", function(e) {
+    if (document.getElementById("lightbox").classList.contains("active")) {
+      if (e.key === "Escape") closeLightbox();
+      else if (e.key === "ArrowLeft") navLightbox(-1);
+      else if (e.key === "ArrowRight") navLightbox(1);
+    }
+  });
+}
+
+function updateStats() {
+  var total = db.exec("SELECT count(*) FROM photos")[0].values[0][0];
+  var tagCount = 0;
+  var albumCount = 0;
+  try { tagCount = db.exec("SELECT count(*) FROM tags")[0].values[0][0]; } catch(e) {}
+  try { albumCount = db.exec("SELECT count(*) FROM albums")[0].values[0][0]; } catch(e) {}
+  document.getElementById("stats").textContent = total + " photos | " + tagCount + " tags | " + albumCount + " albums";
+}
+
+function loadFilters() {
+  // Tags
+  try {
+    var tagResults = db.exec("SELECT t.name, count(pt.photo_id) as cnt FROM tags t JOIN photo_tags pt ON t.id = pt.tag_id GROUP BY t.id ORDER BY cnt DESC");
+    var tagDiv = document.getElementById("tag-filters");
+    if (tagResults.length > 0) {
+      tagResults[0].values.forEach(function(row) {
+        var name = row[0], cnt = row[1];
+        var label = document.createElement("label");
+        var cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.dataset.tag = name;
+        cb.addEventListener("change", function() { toggleTag(name, cb.checked); });
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(" " + name + " (" + cnt + ")"));
+        tagDiv.appendChild(label);
+      });
+    }
+  } catch(e) {}
+
+  // Albums
+  try {
+    var albumResults = db.exec("SELECT a.name, count(pa.photo_id) as cnt FROM albums a JOIN photo_albums pa ON a.id = pa.album_id GROUP BY a.id ORDER BY cnt DESC");
+    var albumDiv = document.getElementById("album-filters");
+    if (albumResults.length > 0) {
+      albumResults[0].values.forEach(function(row) {
+        var name = row[0], cnt = row[1];
+        var label = document.createElement("label");
+        var cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.dataset.album = name;
+        cb.addEventListener("change", function() { toggleAlbum(name, cb.checked); });
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(" " + name + " (" + cnt + ")"));
+        albumDiv.appendChild(label);
+      });
+    }
+  } catch(e) {}
+}
+
+function toggleFavorites() {
+  filters.favorites = !filters.favorites;
+  document.getElementById("btn-favorites").classList.toggle("active");
+  currentPage = 0;
+  applyFilters();
+}
+
+function toggleVideos() {
+  filters.videos = !filters.videos;
+  document.getElementById("btn-videos").classList.toggle("active");
+  currentPage = 0;
+  applyFilters();
+}
+
+function toggleTag(name, checked) {
+  if (checked) filters.tags.push(name);
+  else filters.tags = filters.tags.filter(function(t) { return t !== name; });
+  currentPage = 0;
+  applyFilters();
+}
+
+function toggleAlbum(name, checked) {
+  if (checked) filters.albums.push(name);
+  else filters.albums = filters.albums.filter(function(a) { return a !== name; });
+  currentPage = 0;
+  applyFilters();
+}
+
+function applyFilters() {
+  var sql = "SELECT DISTINCT p.id, p.filename, p.caption, p.is_favorite, p.is_video, p.thumbnail_data, p.thumbnail_mime, p.date_taken, p.original_path FROM photos p";
+  var joins = [];
+  var where = [];
+  var params = [];
+
+  if (filters.favorites) where.push("p.is_favorite = 1");
+  if (filters.videos) where.push("p.is_video = 1");
+
+  if (filters.search) {
+    where.push("(p.caption LIKE ? OR p.filename LIKE ?)");
+    params.push("%" + filters.search + "%", "%" + filters.search + "%");
+  }
+
+  filters.tags.forEach(function(tag, i) {
+    joins.push("JOIN photo_tags pt" + i + " ON p.id = pt" + i + ".photo_id JOIN tags t" + i + " ON pt" + i + ".tag_id = t" + i + ".id");
+    where.push("t" + i + ".name = ?");
+    params.push(tag);
+  });
+
+  filters.albums.forEach(function(album, i) {
+    joins.push("JOIN photo_albums pa" + i + " ON p.id = pa" + i + ".photo_id JOIN albums a" + i + " ON pa" + i + ".album_id = a" + i + ".id");
+    where.push("a" + i + ".name = ?");
+    params.push(album);
+  });
+
+  if (joins.length) sql += " " + joins.join(" ");
+  if (where.length) sql += " WHERE " + where.join(" AND ");
+  sql += " ORDER BY p.date_taken DESC";
+
+  var stmt = db.prepare(sql);
+  stmt.bind(params);
+
+  currentPhotos = [];
+  while (stmt.step()) {
+    var row = stmt.getAsObject();
+    currentPhotos.push(row);
+  }
+  stmt.free();
+
+  renderGrid();
+  renderPagination();
+}
+
+function renderGrid() {
+  var grid = document.getElementById("grid");
+  grid.innerHTML = "";
+
+  var start = currentPage * PAGE_SIZE;
+  var end = Math.min(start + PAGE_SIZE, currentPhotos.length);
+  var pagePhotos = currentPhotos.slice(start, end);
+
+  pagePhotos.forEach(function(photo, idx) {
+    var item = document.createElement("div");
+    item.className = "grid-item";
+    item.onclick = function() { openLightbox(start + idx); };
+
+    if (photo.thumbnail_data) {
+      var img = document.createElement("img");
+      var mime = photo.thumbnail_mime || "image/webp";
+      var b64;
+      if (photo.thumbnail_data instanceof Uint8Array) {
+        b64 = uint8ToBase64(photo.thumbnail_data);
+      } else {
+        b64 = photo.thumbnail_data;
+      }
+      img.src = "data:" + mime + ";base64," + b64;
+      img.alt = photo.filename;
+      img.loading = "lazy";
+      item.appendChild(img);
+    } else {
+      var noThumb = document.createElement("div");
+      noThumb.className = "no-thumb";
+      noThumb.textContent = "[photo]";
+      item.appendChild(noThumb);
+    }
+
+    if (photo.is_favorite) {
+      var badge = document.createElement("span");
+      badge.className = "favorite-badge";
+      badge.textContent = "*";
+      item.appendChild(badge);
+    }
+
+    if (photo.caption) {
+      var cap = document.createElement("div");
+      cap.className = "caption-badge";
+      cap.textContent = photo.caption;
+      item.appendChild(cap);
+    }
+
+    grid.appendChild(item);
+  });
+}
+
+function uint8ToBase64(u8) {
+  var binary = "";
+  for (var i = 0; i < u8.length; i++) binary += String.fromCharCode(u8[i]);
+  return btoa(binary);
+}
+
+function renderPagination() {
+  var div = document.getElementById("pagination");
+  div.innerHTML = "";
+
+  var totalPages = Math.ceil(currentPhotos.length / PAGE_SIZE);
+  if (totalPages <= 1) {
+    div.innerHTML = '<div class="info">' + currentPhotos.length + ' photos</div>';
+    return;
+  }
+
+  // Previous button
+  if (currentPage > 0) {
+    var prev = document.createElement("button");
+    prev.textContent = "Prev";
+    prev.onclick = function() { currentPage--; renderGrid(); renderPagination(); window.scrollTo(0, 0); };
+    div.appendChild(prev);
+  }
+
+  // Page buttons (show max 7)
+  var startPage = Math.max(0, currentPage - 3);
+  var endPage = Math.min(totalPages, startPage + 7);
+  for (var i = startPage; i < endPage; i++) {
+    var btn = document.createElement("button");
+    btn.textContent = i + 1;
+    if (i === currentPage) btn.className = "active";
+    (function(pageNum) {
+      btn.onclick = function() { currentPage = pageNum; renderGrid(); renderPagination(); window.scrollTo(0, 0); };
+    })(i);
+    div.appendChild(btn);
+  }
+
+  // Next button
+  if (currentPage < totalPages - 1) {
+    var next = document.createElement("button");
+    next.textContent = "Next";
+    next.onclick = function() { currentPage++; renderGrid(); renderPagination(); window.scrollTo(0, 0); };
+    div.appendChild(next);
+  }
+
+  var info = document.createElement("div");
+  info.className = "info";
+  info.textContent = "Page " + (currentPage + 1) + " of " + totalPages + " | " + currentPhotos.length + " photos";
+  div.appendChild(info);
+}
+
+function openLightbox(index) {
+  currentLightboxIndex = index;
+  var photo = currentPhotos[index];
+
+  // Load full photo details using parameterized query
+  var stmt = db.prepare(
+    "SELECT p.*, " +
+    "GROUP_CONCAT(DISTINCT t.name) as tag_names, " +
+    "GROUP_CONCAT(DISTINCT a.name) as album_names " +
+    "FROM photos p " +
+    "LEFT JOIN photo_tags pt ON p.id = pt.photo_id " +
+    "LEFT JOIN tags t ON pt.tag_id = t.id " +
+    "LEFT JOIN photo_albums pa ON p.id = pa.photo_id " +
+    "LEFT JOIN albums a ON pa.album_id = a.id " +
+    "WHERE p.id = ? " +
+    "GROUP BY p.id"
+  );
+  stmt.bind([photo.id]);
+
+  if (!stmt.step()) { stmt.free(); return; }
+
+  var d = stmt.getAsObject();
+  stmt.free();
+
+  // Image
+  var imgDiv = document.getElementById("lightbox-image");
+  if (d.thumbnail_data) {
+    var mime = d.thumbnail_mime || "image/webp";
+    var b64;
+    if (d.thumbnail_data instanceof Uint8Array) {
+      b64 = uint8ToBase64(d.thumbnail_data);
+    } else {
+      b64 = d.thumbnail_data;
+    }
+    imgDiv.innerHTML = '<img src="data:' + mime + ';base64,' + b64 + '" alt="' + escapeHtml(d.filename) + '">';
+  } else {
+    imgDiv.innerHTML = '<div class="no-thumb" style="font-size:4rem">[photo]</div>';
+  }
+
+  // Info
+  var info = document.getElementById("lightbox-info");
+  var html = "<h2>" + escapeHtml(d.filename) + "</h2>";
+
+  if (d.original_path) {
+    html += '<a class="file-link" title="File location">' + escapeHtml(d.original_path) + '</a>';
+  }
+
+  html += '<div style="margin-top:1rem">';
+
+  var meta = [
+    ["Date", d.date_taken],
+    ["Size", d.file_size ? formatBytes(d.file_size) : null],
+    ["Dimensions", d.width && d.height ? d.width + " x " + d.height : null],
+    ["Camera", [d.camera_make, d.camera_model].filter(Boolean).join(" ") || null],
+    ["Lens", d.lens],
+    ["Focal Length", d.focal_length ? d.focal_length + "mm" : null],
+    ["Aperture", d.aperture ? "f/" + d.aperture : null],
+    ["Shutter", d.shutter_speed],
+    ["ISO", d.iso],
+    ["Location", d.location_name || (d.latitude ? d.latitude.toFixed(4) + ", " + d.longitude.toFixed(4) : null)],
+    ["Favorite", d.is_favorite ? "Yes" : null],
+  ];
+
+  meta.forEach(function(pair) {
+    var label = pair[0], value = pair[1];
+    if (value) html += '<div class="meta-row"><span class="meta-label">' + label + '</span><span class="meta-value">' + escapeHtml(String(value)) + '</span></div>';
+  });
+
+  html += "</div>";
+
+  if (d.caption) {
+    html += '<div style="margin-top:1rem"><div class="meta-label" style="margin-bottom:0.3rem">Caption</div><div>' + escapeHtml(d.caption) + '</div></div>';
+  }
+
+  if (d.tag_names) {
+    html += '<div class="tags">';
+    d.tag_names.split(",").forEach(function(t) { html += '<span class="tag">' + escapeHtml(t) + '</span>'; });
+    html += '</div>';
+  }
+
+  if (d.album_names) {
+    html += '<div style="margin-top:0.5rem">';
+    d.album_names.split(",").forEach(function(a) { html += '<span class="tag" style="background:#2d3748">' + escapeHtml(a) + '</span>'; });
+    html += '</div>';
+  }
+
+  info.innerHTML = html;
+  document.getElementById("lightbox").classList.add("active");
+  document.body.style.overflow = "hidden";
+}
+
+function closeLightbox() {
+  document.getElementById("lightbox").classList.remove("active");
+  document.body.style.overflow = "";
+}
+
+function navLightbox(direction) {
+  var newIndex = currentLightboxIndex + direction;
+  if (newIndex >= 0 && newIndex < currentPhotos.length) {
+    openLightbox(newIndex);
+  }
+}
+
+function escapeHtml(str) {
+  var div = document.createElement("div");
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / 1048576).toFixed(1) + " MB";
+}
+
+// Start
+init().catch(function(err) {
+  document.getElementById("loading").innerHTML = '<div style="color:#e94560">Error: ' + err.message + '</div>';
+});
+</script>
+</body>
+</html>

@@ -609,7 +609,45 @@ def rescan(
 
 
 # =============================================================================
-# 8. ptk mcp
+# 8. ptk export
+# =============================================================================
+
+export_app = typer.Typer(help="Export library to various formats")
+app.add_typer(export_app, name="export")
+
+
+@export_app.command("arkiv")
+def export_arkiv_cmd(
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory"),
+    title: Optional[str] = typer.Option(None, "--title", "-t", help="Archive title"),
+) -> None:
+    """Export library to arkiv format (JSONL + schema)."""
+    _require_library()
+
+    from ptk.exports.arkiv import export_arkiv
+
+    output_dir = output or Path("ptk-photos")
+    count = export_arkiv(output_dir, title=title)
+    console.print(f"[green]Exported {count} photos to {output_dir}/[/green]")
+
+
+@export_app.command("html")
+def export_html_cmd(
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output HTML file"),
+    title: str = typer.Option("ptk Photo Library", "--title", "-t", help="Gallery title"),
+) -> None:
+    """Export library as single-file HTML photo browser."""
+    _require_library()
+
+    from ptk.exports.html import export_html
+
+    output_path = output or Path("ptk-export.html")
+    count = export_html(output_path, title=title)
+    console.print(f"[green]Exported {count} photos to {output_path}[/green]")
+
+
+# =============================================================================
+# 9. ptk mcp
 # =============================================================================
 
 @app.command()

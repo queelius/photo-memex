@@ -1,23 +1,22 @@
 """SQLAlchemy models for ptk database."""
 
 from datetime import datetime
-from typing import Optional, List
 
 from sqlalchemy import (
-    Column,
-    Integer,
-    String,
-    Text,
+    JSON,
     Boolean,
+    Column,
     DateTime,
     Float,
     ForeignKey,
-    Table,
     Index,
+    Integer,
     LargeBinary,
-    JSON,
+    String,
+    Table,
+    Text,
 )
-from sqlalchemy.orm import DeclarativeBase, relationship, Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
@@ -100,73 +99,72 @@ class Photo(Base):
     filename: Mapped[str] = mapped_column(String(512), nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
     mime_type: Mapped[str] = mapped_column(String(64), nullable=False)
-    width: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    height: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Temporal (from EXIF or file)
-    date_taken: Mapped[Optional[datetime]] = mapped_column(
+    date_taken: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
     )
     date_imported: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )
-    date_modified: Mapped[Optional[datetime]] = mapped_column(
+    date_modified: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
     # EXIF metadata
-    camera_make: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
-    camera_model: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
-    lens: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
-    focal_length: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    aperture: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    shutter_speed: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
-    iso: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    camera_make: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    camera_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    lens: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    focal_length: Mapped[float | None] = mapped_column(Float, nullable=True)
+    aperture: Mapped[float | None] = mapped_column(Float, nullable=True)
+    shutter_speed: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    iso: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Location (GPS)
-    latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True, index=True)
-    longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True, index=True)
-    altitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    location_name: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
-    country: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
-    city: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True, index=True)
+    altitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    location_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    country: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    city: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
-    # AI-generated content
-    caption: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    objects: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    scene: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
-    ai_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    ai_analyzed_at: Mapped[Optional[datetime]] = mapped_column(
+    # AI-generated content (populated via MCP by Claude Code)
+    caption: Mapped[str | None] = mapped_column(Text, nullable=True)
+    objects: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    scene: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    ai_analyzed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    ai_model: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    ai_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     # Status and flags
     is_favorite: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     is_hidden: Mapped[bool] = mapped_column(Boolean, default=False)
     is_screenshot: Mapped[bool] = mapped_column(Boolean, default=False)
     is_video: Mapped[bool] = mapped_column(Boolean, default=False)
-    duration_seconds: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Thumbnail (stored as BLOB for portability)
-    thumbnail_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
-    thumbnail_mime: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    thumbnail_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    thumbnail_mime: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     # Import source tracking
-    import_source: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    source_metadata: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    import_source: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Relationships
-    tags: Mapped[List["Tag"]] = relationship(
+    tags: Mapped[list["Tag"]] = relationship(
         "Tag", secondary=photo_tags, back_populates="photos"
     )
-    albums: Mapped[List["Album"]] = relationship(
+    albums: Mapped[list["Album"]] = relationship(
         "Album", secondary=photo_albums, back_populates="photos"
     )
-    events: Mapped[List["Event"]] = relationship(
+    events: Mapped[list["Event"]] = relationship(
         "Event", secondary=photo_events, back_populates="photos"
     )
-    faces: Mapped[List["Face"]] = relationship(
+    faces: Mapped[list["Face"]] = relationship(
         "Face", back_populates="photo", cascade="all, delete-orphan"
     )
 
@@ -181,7 +179,11 @@ class Photo(Base):
 
 
 class Face(Base):
-    """Detected face in a photo."""
+    """A face linked to a photo, optionally identified as a person.
+
+    For manual identification (via MCP tag_person), bbox is (0,0,1,1) full-frame
+    and confidence is 0.0. Future face detection can populate real values.
+    """
 
     __tablename__ = "faces"
 
@@ -189,7 +191,7 @@ class Face(Base):
     photo_id: Mapped[str] = mapped_column(
         String(64), ForeignKey("photos.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    person_id: Mapped[Optional[int]] = mapped_column(
+    person_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("people.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
@@ -199,21 +201,12 @@ class Face(Base):
     bbox_width: Mapped[float] = mapped_column(Float, nullable=False)
     bbox_height: Mapped[float] = mapped_column(Float, nullable=False)
 
-    # Detection confidence
+    # Detection confidence (0.0 = manual identification)
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
-
-    # Face embedding (stored as BLOB - 128 dims for dlib)
-    embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
-
-    # Cluster assignment (before named)
-    cluster_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
-
-    # Cropped face thumbnail
-    thumbnail_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
 
     # Relationships
     photo: Mapped["Photo"] = relationship("Photo", back_populates="faces")
-    person: Mapped[Optional["Person"]] = relationship("Person", back_populates="faces")
+    person: Mapped["Person | None"] = relationship("Person", back_populates="faces")
 
     def __repr__(self) -> str:
         return f"<Face {self.id} in photo {self.photo_id[:8]}...>"
@@ -226,24 +219,18 @@ class Person(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(256), nullable=False, unique=True, index=True)
-    relationship_type: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
-    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
-    # Representative face embedding (average of confirmed faces)
-    representative_embedding: Mapped[Optional[bytes]] = mapped_column(
-        LargeBinary, nullable=True
-    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     # Relationships
-    faces: Mapped[List["Face"]] = relationship("Face", back_populates="person")
+    faces: Mapped[list["Face"]] = relationship("Face", back_populates="person")
 
     @property
     def photo_count(self) -> int:
         """Number of unique photos this person appears in."""
-        return len(set(f.photo_id for f in self.faces))
+        return len({f.photo_id for f in self.faces})
 
     def __repr__(self) -> str:
         return f"<Person {self.id}: {self.name}>"
@@ -255,27 +242,27 @@ class Event(Base):
     __tablename__ = "events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(256), nullable=False, index=True)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    name: Mapped[str] = mapped_column(String(256), nullable=False, unique=True, index=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Date range
-    start_date: Mapped[Optional[datetime]] = mapped_column(
+    start_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
     )
-    end_date: Mapped[Optional[datetime]] = mapped_column(
+    end_date: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
     # Location (centroid)
-    latitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    longitude: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    location_name: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    location_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     # Auto-detected vs manual
     is_auto_detected: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Relationships
-    photos: Mapped[List["Photo"]] = relationship(
+    photos: Mapped[list["Photo"]] = relationship(
         "Photo", secondary=photo_events, back_populates="events"
     )
 
@@ -289,9 +276,9 @@ class Album(Base):
     __tablename__ = "albums"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(256), nullable=False, index=True)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    cover_photo_id: Mapped[Optional[str]] = mapped_column(
+    name: Mapped[str] = mapped_column(String(256), nullable=False, unique=True, index=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    cover_photo_id: Mapped[str | None] = mapped_column(
         String(64), ForeignKey("photos.id", ondelete="SET NULL"), nullable=True
     )
 
@@ -299,7 +286,7 @@ class Album(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     # Relationships
-    photos: Mapped[List["Photo"]] = relationship(
+    photos: Mapped[list["Photo"]] = relationship(
         "Photo", secondary=photo_albums, back_populates="albums"
     )
 
@@ -314,30 +301,12 @@ class Tag(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(256), unique=True, nullable=False, index=True)
-    color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
+    color: Mapped[str | None] = mapped_column(String(7), nullable=True)
 
     # Relationships
-    photos: Mapped[List["Photo"]] = relationship(
+    photos: Mapped[list["Photo"]] = relationship(
         "Photo", secondary=photo_tags, back_populates="tags"
     )
 
     def __repr__(self) -> str:
         return f"<Tag {self.id}: {self.name}>"
-
-
-class PhotoEmbedding(Base):
-    """CLIP embeddings for semantic search - separate table for performance."""
-
-    __tablename__ = "photo_embeddings"
-
-    photo_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("photos.id", ondelete="CASCADE"), primary_key=True
-    )
-    model_name: Mapped[str] = mapped_column(String(128), nullable=False)
-    embedding: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-
-    __table_args__ = (Index("ix_photo_embeddings_model", "model_name"),)
-
-    def __repr__(self) -> str:
-        return f"<PhotoEmbedding {self.photo_id[:8]}... model={self.model_name}>"

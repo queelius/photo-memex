@@ -27,7 +27,6 @@ DEFAULT_DATABASE_NAME: Final[str] = "ptk.db"
 
 # XDG paths
 APP_NAME: Final[str] = "ptk"
-CONFIG_FILENAME: Final[str] = "config.toml"
 
 # Hashing
 HASH_CHUNK_SIZE: Final[int] = 65536  # 64KB chunks for file hashing

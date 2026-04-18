@@ -1,203 +1,119 @@
-# ptk — Photo Toolkit
+# photo-memex
 
-A CLI tool for managing personal photo libraries with AI-powered organization and semantic search. Your photos identified by content hash, never duplicated, always findable.
+Personal photo library archive with MCP server for AI annotation, and export to arkiv/HTML.
 
-## Features
+Part of the [`*-memex` ecosystem](../CLAUDE.md): llm-memex (conversations), mail-memex (email), bookmark-memex (bookmarks), book-memex (ebooks), photo-memex (photos), hugo-memex (site content).
 
-- **SHA256 deduplication** — Photos identified by content, import the same photo twice and it's deduplicated
-- **Multi-source import** — Local directories, Google Takeout, Apple Photos exports
-- **Flexible organization** — Tags, albums, favorites, timeline browsing
-- **AI annotation** — Describe photos, ask questions, batch annotate with multiple providers
-- **Claude Code integration** — Install as a skill for direct photo analysis
-- **Path resilience** — Move your photos, then rescan to find them by content hash
-- **SQLite-backed** — Portable, queryable, no server needed
+## What it does
+
+- **SHA256 deduplication**: photos identified by content hash, never duplicated, survive moves and renames.
+- **Multi-source import**: local directories, Google Takeout, Apple Photos exports.
+- **Organization**: tags (M2M), albums (M2M), favorites, events, person tagging.
+- **MCP server**: 21 tools for querying and annotating photos. Claude Code sees your photos, writes captions, adds tags, identifies people.
+- **Exports**: arkiv (JSONL + schema.yaml), single-file HTML gallery (sql.js).
+- **Path resilience**: photos move on disk, `photo-memex rescan` finds them by content hash.
 
 ## Installation
 
 ```bash
-pip install ptk-photo
-
-# Or with optional features
-pip install ptk-photo[ai]        # AI providers (OpenAI, Anthropic)
-pip install ptk-photo[faces]     # Face detection/clustering
-pip install ptk-photo[all]       # Everything
+pip install -e ".[dev,mcp]"
 ```
 
-## Quick Start
+## Quick start
 
 ```bash
 # Initialize a library
 cd ~/Pictures
-ptk init
+photo-memex init
 
 # Import photos
-ptk import .                      # Current directory
-ptk import ~/Photos --recursive   # Recursive import
-ptk import takeout.zip --source google  # Google Takeout
+photo-memex import .
+photo-memex import ~/Photos --recursive
+photo-memex import takeout.zip --source google
 
-# Query photos
-ptk query                         # All photos
-ptk query --favorite              # Favorites
-ptk query --tag vacation          # By tag
-ptk query --uncaptioned -n 10     # Photos without captions
-ptk query --format paths          # Output id|path pairs
+# Query
+photo-memex query                         # all photos
+photo-memex query --favorite              # favorites
+photo-memex query --tag vacation          # by tag
+photo-memex query --uncaptioned -n 10     # photos without captions
+photo-memex query --format paths          # id|path pairs
 
 # Organize
-ptk set abc123 --tag beach --favorite
-ptk set abc123 --album "Summer 2024"
-ptk set abc123 --caption "Sunset at the pier"
+photo-memex set abc123 --tag beach --favorite
+photo-memex set abc123 --album "Summer 2024"
+photo-memex set abc123 --caption "Sunset at the pier"
 
-# AI annotation (requires Ollama or API keys)
-ptk ai status                     # Check provider
-ptk ai describe abc123            # Describe a photo
-ptk ai ask abc123 "How many people are in this photo?"
+# Path management
+photo-memex verify                        # check which paths are missing
+photo-memex relocate /old/path /new/path  # bulk update path prefixes
+photo-memex rescan ~/new/location         # find moved photos by hash
 
-# Path management (if you move your photos)
-ptk verify                        # Check which photos are missing
-ptk relocate /old/path /new/path  # Bulk update paths
-ptk rescan ~/new/location         # Find moved photos by hash
+# Export
+photo-memex export arkiv -o my-photos/    # JSONL + schema.yaml
+photo-memex export html -o gallery.html   # single-file browser
+
+# MCP server (for Claude Code integration)
+photo-memex mcp
 ```
 
-## CLI Reference
-
-ptk has a minimal CLI with essential commands:
+## CLI reference
 
 | Command | Purpose |
 |---------|---------|
-| `ptk init` | Initialize library in current directory |
-| `ptk import` | Import photos from directory or archive |
-| `ptk query` | Query photos with filters (alias: `ptk q`) |
-| `ptk show` | Show photo details and annotations |
-| `ptk set` | Modify photo metadata (tags, albums, caption) |
-| `ptk stats` | Library statistics |
-| `ptk ai` | AI commands (status, describe, ask, annotate, batch) |
-| `ptk view` | Manage annotation views |
-| `ptk claude` | Claude Code skill management |
-| `ptk verify` | Check photo paths exist |
-| `ptk relocate` | Bulk update path prefixes |
-| `ptk rescan` | Find moved photos by content hash |
+| `photo-memex init` | Initialize library in current directory |
+| `photo-memex import PATH` | Import photos from directory or archive |
+| `photo-memex query` / `photo-memex q` | Query photos with filters or SQL |
+| `photo-memex show PHOTO_ID` | Show photo details |
+| `photo-memex set PHOTO_ID` | Modify photo metadata (tags, albums, caption, favorite) |
+| `photo-memex stats` | Library statistics |
+| `photo-memex verify` | Check that photo paths exist on disk |
+| `photo-memex relocate OLD NEW` | Bulk update path prefixes |
+| `photo-memex rescan DIR` | Find moved photos by content hash |
+| `photo-memex export arkiv` | Export to arkiv format (JSONL + schema.yaml) |
+| `photo-memex export html` | Export as single-file HTML photo browser |
+| `photo-memex mcp` | Launch MCP server (stdio) |
 
-### Query Examples
+## MCP server
 
-```bash
-# Filters
-ptk q --favorite                  # Favorites only
-ptk q --tag beach --tag sunset    # Multiple tags (AND)
-ptk q --album "Vacation 2024"     # By album
-ptk q --uncaptioned               # Photos without captions
+The MCP server exposes the photo library to Claude Code over stdio. Configure in your MCP client:
 
-# Output formats
-ptk q --format table              # Default table view
-ptk q --format json               # JSON output
-ptk q --format ids                # Just photo IDs
-ptk q --format paths              # id|path pairs (for scripting)
-ptk q --format count              # Just the count
-
-# Pagination
-ptk q --limit 20 --offset 40      # Page 3 of results
-
-# Raw SQL
-ptk q --sql "SELECT * FROM photos WHERE caption LIKE '%beach%'"
+```json
+{
+  "mcpServers": {
+    "photo-memex": {
+      "command": "photo-memex",
+      "args": ["mcp"],
+      "env": {"PTK_LIBRARY": "/path/to/library"}
+    }
+  }
+}
 ```
 
-## AI Providers
+Claude Code can then query your library with SQL, view thumbnails, write captions, add tags, identify people, group photos into events, and batch-annotate.
 
-ptk supports multiple AI vision providers:
-
-| Provider | Setup | Best for |
-|----------|-------|----------|
-| **Ollama** | `ollama pull llava` | Local, private, free |
-| **Claude Code** | `ptk claude install` | Direct integration with Claude |
-| **OpenAI** | Set `OPENAI_API_KEY` | GPT-4o vision |
-| **Anthropic** | Set `ANTHROPIC_API_KEY` | Claude vision API |
-
-### Claude Code Integration
-
-Install ptk as a Claude Code skill for direct photo analysis:
-
-```bash
-ptk claude install    # Install skill
-ptk claude status     # Check installation
-ptk claude uninstall  # Remove skill
-```
-
-Once installed, Claude Code can directly read and analyze your photos.
-
-### Configuration
-
-Create `ptk.yaml` in your library directory:
-
-```yaml
-ai:
-  provider: ollama  # or openai, anthropic
-  ollama:
-    host: localhost
-    port: 11434
-    model: llava
-  openai:
-    api_key: ${OPENAI_API_KEY}
-    model: gpt-4o
-  anthropic:
-    api_key: ${ANTHROPIC_API_KEY}
-    model: claude-sonnet-4-20250514
-```
-
-## Path Resilience
-
-Photos are identified by SHA256 content hash, not path. If you move your photos:
-
-```bash
-# 1. Check what's missing
-ptk verify
-
-# 2a. If you renamed a parent directory:
-ptk relocate /old/path /new/path --verify
-
-# 2b. If photos are scattered:
-ptk rescan ~/Pictures --missing-only
-```
-
-## Data Model
+## Data model
 
 ```
-Photo (identified by SHA256)
-├── Metadata (EXIF, dimensions, dates)
-├── Tags (many-to-many)
-├── Albums (many-to-many)
-├── Caption (AI-generated or manual)
-└── View Annotations (structured AI analysis)
+Photo (identified by SHA256 of file content)
++-- EXIF metadata (camera, lens, GPS, dates)
++-- Tags (many-to-many)
++-- Albums (many-to-many)
++-- Events (many-to-many)
++-- Faces / People (person tagging)
++-- Caption, scene (AI-generated or manual)
 ```
 
-Original files are **never modified**. ptk stores only metadata in SQLite.
+Original files are never modified. All metadata lives in SQLite (`photo-memex.db`).
 
 ## Development
 
 ```bash
-git clone https://github.com/YourUsername/ptk
-cd ptk
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-
-# Run tests
-pytest
-
-# With coverage
-pytest --cov=ptk --cov-report=term-missing
+pip install -e ".[dev,mcp]"
+pytest                          # ~280 tests
+pytest --cov=ptk                # with coverage
+ruff check ptk tests            # lint
+ruff format ptk tests           # format
 ```
-
-## Part of longecho
-
-ptk is a domain toolkit in the [longecho](https://github.com/YourUsername/longecho) personal archive ecosystem:
-
-| Tool | Domain |
-|------|--------|
-| ctk | Conversations |
-| btk | Bookmarks |
-| ebk | Ebooks |
-| stk | Static sites |
-| **ptk** | **Photos** |
-| mtk | Mail |
 
 ## License
 

@@ -140,8 +140,9 @@ def execute_sql(
         QueryResult with photos and metadata
     """
     if limit:
-        # Wrap in subquery with limit
-        sql = f"SELECT * FROM ({sql}) LIMIT {limit}"
+        # Wrap in subquery with limit. Strip trailing ';' so the wrapped form
+        # parses cleanly: SELECT * FROM (SELECT ...) LIMIT N
+        sql = f"SELECT * FROM ({sql.rstrip().rstrip(';').rstrip()}) LIMIT {limit}"
 
     result = session.execute(text(sql))
     rows = result.fetchall()

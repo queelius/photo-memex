@@ -46,7 +46,7 @@ class TestExportHtml:
     def test_default_title(self, html_export):
         """Default title appears in the output."""
         content = html_export.read_text(encoding="utf-8")
-        assert "ptk Photo Library" in content
+        assert "photo-memex Photo Library" in content
 
     def test_custom_title(self, populated_library, temp_dir):
         """Custom title appears in the output."""
@@ -116,7 +116,7 @@ class TestExportHtml:
             tmp_path.unlink(missing_ok=True)
 
     def test_embedded_db_has_no_embeddings(self, html_export):
-        """The embedded database has photo_embeddings stripped."""
+        """The embedded database has no photo_embeddings data (table may not exist in new DBs)."""
         content = html_export.read_text(encoding="utf-8")
         start_marker = 'id="db-data">'
         end_marker = "</script>"
@@ -134,8 +134,16 @@ class TestExportHtml:
 
         try:
             conn = sqlite3.connect(str(tmp_path))
-            count = conn.execute("SELECT count(*) FROM photo_embeddings").fetchone()[0]
-            assert count == 0
+            # Table may not exist in databases created after the model was removed
+            tables = [
+                r[0]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
+            ]
+            if "photo_embeddings" in tables:
+                count = conn.execute("SELECT count(*) FROM photo_embeddings").fetchone()[0]
+                assert count == 0
             conn.close()
         finally:
             tmp_path.unlink(missing_ok=True)

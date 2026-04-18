@@ -49,7 +49,7 @@ class TestArkivExport:
         assert len(parts) >= 3
         frontmatter = yaml.safe_load(parts[1])
         assert "generator" in frontmatter
-        assert frontmatter["generator"].startswith("ptk")
+        assert frontmatter["generator"].startswith("photo-memex")
 
     def test_readme_contains_photo_count(self, library_with_tagged_photo, tmp_path):
         """README description includes the number of photos."""
@@ -104,7 +104,7 @@ class TestArkivExport:
         assert count == total_photos
 
     def test_jsonl_record_has_required_fields(self, library_with_tagged_photo, tmp_path):
-        """Each JSONL record has mimetype, uri, and metadata fields."""
+        """Each JSONL record has kind, id, source_path, mimetype, and metadata fields."""
         from ptk.exports.arkiv import export_arkiv
 
         output_dir = tmp_path / "arkiv-out"
@@ -113,8 +113,10 @@ class TestArkivExport:
         jsonl_path = output_dir / "photos.jsonl"
         record = json.loads(jsonl_path.read_text().strip().split("\n")[0])
 
+        assert "kind" in record
+        assert "id" in record
+        assert "source_path" in record
         assert "mimetype" in record
-        assert "uri" in record
         assert "metadata" in record
 
     def test_jsonl_metadata_sha256(self, library_with_tagged_photo, tmp_path, db_session):
@@ -156,8 +158,8 @@ class TestArkivExport:
 
         assert record["metadata"]["caption"] == "A red test image"
 
-    def test_jsonl_uri_starts_with_file(self, library_with_tagged_photo, tmp_path):
-        """uri starts with file:///."""
+    def test_jsonl_source_path_starts_with_file(self, library_with_tagged_photo, tmp_path):
+        """source_path starts with file:///."""
         from ptk.exports.arkiv import export_arkiv
 
         output_dir = tmp_path / "arkiv-out"
@@ -166,7 +168,7 @@ class TestArkivExport:
         jsonl_path = output_dir / "photos.jsonl"
         record = json.loads(jsonl_path.read_text().strip().split("\n")[0])
 
-        assert record["uri"].startswith("file:///")
+        assert record["source_path"].startswith("file:///")
 
     def test_jsonl_mimetype(self, library_with_tagged_photo, tmp_path, db_session):
         """mimetype comes from photo.mime_type."""
@@ -292,3 +294,27 @@ class TestArkivExport:
         tags = record["metadata"]["tags"]
         assert tags == sorted(tags)
         assert tags == ["alpha", "zebra"]
+
+    def test_jsonl_record_has_kind(self, library_with_tagged_photo, tmp_path):
+        """Each JSONL record has kind='photo'."""
+        from ptk.exports.arkiv import export_arkiv
+
+        output_dir = tmp_path / "arkiv-out"
+        export_arkiv(output_dir)
+
+        jsonl_path = output_dir / "photos.jsonl"
+        record = json.loads(jsonl_path.read_text().strip().split("\n")[0])
+        assert record["kind"] == "photo"
+
+    def test_jsonl_record_has_archive_uri(self, library_with_tagged_photo, tmp_path, db_session):
+        """Each JSONL record has a photo-memex:// URI as id."""
+        from ptk.exports.arkiv import export_arkiv
+
+        output_dir = tmp_path / "arkiv-out"
+        export_arkiv(output_dir)
+
+        jsonl_path = output_dir / "photos.jsonl"
+        record = json.loads(jsonl_path.read_text().strip().split("\n")[0])
+
+        photo = db_session.query(Photo).first()
+        assert record["id"] == f"photo-memex://photo/{photo.id}"

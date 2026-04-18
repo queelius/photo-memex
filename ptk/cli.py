@@ -9,24 +9,24 @@ Essential commands:
 - ptk stats         Library statistics
 """
 
-from datetime import datetime
+import os
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional, List
 
 import typer
 from rich.console import Console
+from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 
 from ptk import __version__
 from ptk.core.config import PtkConfig, find_library, set_config
 from ptk.core.constants import DEFAULT_DATABASE_NAME
+from ptk.db.models import Album, Photo, Tag
 from ptk.db.session import init_db, session_scope
-from ptk.db.models import Photo, Album, Tag
 
 app = typer.Typer(
-    name="ptk",
-    help="Photo Toolkit - AI-powered photo library management",
+    name="photo-memex",
+    help="photo-memex - Personal photo library archive",
     no_args_is_help=True,
 )
 console = Console()
@@ -36,18 +36,19 @@ console = Console()
 # Helpers
 # =============================================================================
 
+
 def version_callback(value: bool) -> None:
     if value:
-        console.print(f"ptk version {__version__}")
+        console.print(f"photo-memex version {__version__}")
         raise typer.Exit()
 
 
-def _require_library(path: Optional[Path] = None) -> Path:
+def _require_library(path: Path | None = None) -> Path:
     """Find and initialize the library."""
     library_path = find_library(path)
     if library_path is None:
-        console.print("[red]No ptk library found.[/red]")
-        console.print("Run 'ptk init' to create one.")
+        console.print("[red]No photo-memex library found.[/red]")
+        console.print("Run 'photo-memex init' to create one, or 'ptk init'.")
         raise typer.Exit(1)
 
     config = PtkConfig(library_path=library_path)
@@ -59,8 +60,12 @@ def _require_library(path: Optional[Path] = None) -> Path:
 @app.callback()
 def main(
     version: bool = typer.Option(
-        False, "--version", "-v", callback=version_callback, is_eager=True,
-        help="Show version and exit"
+        False,
+        "--version",
+        "-v",
+        callback=version_callback,
+        is_eager=True,
+        help="Show version and exit",
     ),
 ) -> None:
     """Photo Toolkit - AI-powered photo library management."""
@@ -71,9 +76,10 @@ def main(
 # 1. ptk init
 # =============================================================================
 
+
 @app.command()
 def init(
-    path: Optional[Path] = typer.Argument(None, help="Library path (default: current directory)"),
+    path: Path | None = typer.Argument(None, help="Library path (default: current directory)"),
     force: bool = typer.Option(False, "--force", "-f", help="Overwrite existing library"),
 ) -> None:
     """Initialize a new ptk library."""
@@ -90,18 +96,23 @@ def init(
     set_config(config)
     init_db(config.database_path, create_tables=True)
 
-    console.print(f"[green]Initialized ptk library at {target}[/green]")
+    console.print(f"[green]Initialized photo-memex library at {target}[/green]")
 
 
 # =============================================================================
 # 2. ptk import
 # =============================================================================
 
+
 @app.command("import")
 def import_photos(
     path: Path = typer.Argument(None, help="Path to import from"),
-    source: Optional[str] = typer.Option(None, "--source", "-s", help="Source type (dir, google, apple)"),
-    recursive: bool = typer.Option(True, "--recursive/--no-recursive", "-r", help="Recursive import"),
+    source: str | None = typer.Option(
+        None, "--source", "-s", help="Source type (dir, google, apple)"
+    ),
+    recursive: bool = typer.Option(
+        True, "--recursive/--no-recursive", "-r", help="Recursive import"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Show what would be imported"),
 ) -> None:
     """Import photos from a source."""
@@ -129,9 +140,11 @@ def import_photos(
         importer = FilesystemImporter(recursive=recursive)
     elif source == "google":
         from ptk.importers.google_takeout import GoogleTakeoutImporter
+
         importer = GoogleTakeoutImporter()
     elif source == "apple":
         from ptk.importers.apple_photos import ApplePhotosImporter
+
         importer = ApplePhotosImporter()
     else:
         console.print(f"[red]Unknown source type: {source}[/red]")
@@ -172,18 +185,21 @@ def import_photos(
 # 3. ptk query (ptk q)
 # =============================================================================
 
+
 @app.command("query")
 @app.command("q", hidden=True)  # Alias
 def query(
     # Filters
     favorite: bool = typer.Option(False, "--favorite", "-f", help="Favorites only"),
-    tag: Optional[List[str]] = typer.Option(None, "--tag", "-t", help="Filter by tag (repeatable)"),
-    album: Optional[str] = typer.Option(None, "--album", "-a", help="Filter by album"),
+    tag: list[str] | None = typer.Option(None, "--tag", "-t", help="Filter by tag (repeatable)"),
+    album: str | None = typer.Option(None, "--album", "-a", help="Filter by album"),
     uncaptioned: bool = typer.Option(False, "--uncaptioned", "-u", help="Photos without captions"),
     # SQL mode
-    sql: Optional[str] = typer.Option(None, "--sql", help="Raw SQL query"),
+    sql: str | None = typer.Option(None, "--sql", help="Raw SQL query"),
     # Output
-    format: str = typer.Option("table", "--format", "-o", help="Output: table, json, ids, count, paths"),
+    format: str = typer.Option(
+        "table", "--format", "-o", help="Output: table, json, ids, count, paths"
+    ),
     limit: int = typer.Option(20, "--limit", "-n", help="Max results"),
     offset: int = typer.Option(0, "--offset", help="Skip first N results"),
 ) -> None:
@@ -197,7 +213,7 @@ def query(
     """
     _require_library()
 
-    from ptk.query import QueryBuilder, execute_query, execute_sql, OutputFormat
+    from ptk.query import OutputFormat, QueryBuilder, execute_query, execute_sql
 
     with session_scope() as session:
         if sql:
@@ -211,7 +227,7 @@ def query(
                 builder.favorite()
             if uncaptioned:
                 builder.uncaptioned()
-            for t in (tag or []):
+            for t in tag or []:
                 builder.tag(t)
             if album:
                 builder.album(album)
@@ -229,6 +245,7 @@ def query(
 # =============================================================================
 # 4. ptk show
 # =============================================================================
+
 
 @app.command()
 def show(
@@ -276,18 +293,19 @@ def show(
 # 5. ptk set
 # =============================================================================
 
+
 @app.command("set")
 def set_metadata(
-    photo_ids: List[str] = typer.Argument(None, help="Photo ID(s)"),
+    photo_ids: list[str] = typer.Argument(None, help="Photo ID(s)"),
     # Add operations
-    tag: Optional[List[str]] = typer.Option(None, "--tag", "-t", help="Add tag"),
-    album: Optional[str] = typer.Option(None, "--album", "-a", help="Add to album"),
+    tag: list[str] | None = typer.Option(None, "--tag", "-t", help="Add tag"),
+    album: str | None = typer.Option(None, "--album", "-a", help="Add to album"),
     favorite: bool = typer.Option(False, "--favorite", "-f", help="Mark as favorite"),
-    caption: Optional[str] = typer.Option(None, "--caption", "-c", help="Set caption"),
+    caption: str | None = typer.Option(None, "--caption", "-c", help="Set caption"),
     # Remove operations
-    untag: Optional[List[str]] = typer.Option(None, "--untag", help="Remove tag"),
+    untag: list[str] | None = typer.Option(None, "--untag", help="Remove tag"),
     no_favorite: bool = typer.Option(False, "--no-favorite", help="Unmark favorite"),
-    no_album: Optional[str] = typer.Option(None, "--no-album", help="Remove from album"),
+    no_album: str | None = typer.Option(None, "--no-album", help="Remove from album"),
 ) -> None:
     """Modify photo metadata.
 
@@ -314,7 +332,7 @@ def set_metadata(
                 continue
 
             # Add tags
-            for t in (tag or []):
+            for t in tag or []:
                 tag_obj = session.query(Tag).filter(Tag.name == t).first()
                 if not tag_obj:
                     tag_obj = Tag(name=t)
@@ -323,17 +341,16 @@ def set_metadata(
                     photo.tags.append(tag_obj)
 
             # Remove tags
-            for t in (untag or []):
+            for t in untag or []:
                 tag_obj = session.query(Tag).filter(Tag.name == t).first()
                 if tag_obj and tag_obj in photo.tags:
                     photo.tags.remove(tag_obj)
 
             # Add to album
             if album:
-                from datetime import datetime, timezone
                 album_obj = session.query(Album).filter(Album.name == album).first()
                 if not album_obj:
-                    now = datetime.now(timezone.utc)
+                    now = datetime.now(UTC)
                     album_obj = Album(name=album, created_at=now, updated_at=now)
                     session.add(album_obj)
                 if album_obj not in photo.albums:
@@ -364,6 +381,7 @@ def set_metadata(
 # 6. ptk stats
 # =============================================================================
 
+
 @app.command()
 def stats() -> None:
     """Show library statistics."""
@@ -371,12 +389,13 @@ def stats() -> None:
 
     with session_scope() as session:
         total = session.query(Photo).count()
-        videos = session.query(Photo).filter(Photo.is_video == True).count()
-        favorites = session.query(Photo).filter(Photo.is_favorite == True).count()
-        with_location = session.query(Photo).filter(Photo.latitude != None).count()
-        with_date = session.query(Photo).filter(Photo.date_taken != None).count()
+        videos = session.query(Photo).filter(Photo.is_video.is_(True)).count()
+        favorites = session.query(Photo).filter(Photo.is_favorite.is_(True)).count()
+        with_location = session.query(Photo).filter(Photo.latitude.isnot(None)).count()
+        with_date = session.query(Photo).filter(Photo.date_taken.isnot(None)).count()
 
         from sqlalchemy import func
+
         total_size = session.query(func.sum(Photo.file_size)).scalar() or 0
 
         table = Table(title="Library Statistics")
@@ -397,14 +416,13 @@ def stats() -> None:
 # 7. ptk verify/relocate/rescan (Path management)
 # =============================================================================
 
+
 @app.command()
 def verify(
     fix: bool = typer.Option(False, "--fix", help="Tag missing photos as 'missing'"),
 ) -> None:
     """Verify all photo paths exist on disk."""
     _require_library()
-
-    from pathlib import Path as PathLib
 
     with session_scope() as session:
         photos = session.query(Photo).all()
@@ -427,7 +445,7 @@ def verify(
             task = progress.add_task("Verifying paths...", total=total)
 
             for photo in photos:
-                if PathLib(photo.original_path).exists():
+                if Path(photo.original_path).exists():
                     found += 1
                 else:
                     missing.append(photo)
@@ -444,8 +462,6 @@ def verify(
                 console.print(f"  ... and {len(missing) - 20} more")
 
             if fix:
-                # Tag missing photos
-                from ptk.db.models import Tag
                 missing_tag = session.query(Tag).filter_by(name="missing").first()
                 if not missing_tag:
                     missing_tag = Tag(name="missing")
@@ -463,18 +479,16 @@ def relocate(
     old_prefix: str = typer.Argument(..., help="Old path prefix to replace"),
     new_prefix: str = typer.Argument(..., help="New path prefix"),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Preview without changes"),
-    verify_paths: bool = typer.Option(False, "--verify", "-v", help="Verify files exist at new paths"),
+    verify_paths: bool = typer.Option(
+        False, "--verify", "-v", help="Verify files exist at new paths"
+    ),
 ) -> None:
     """Bulk update path prefixes for moved photo directories."""
     _require_library()
 
-    from pathlib import Path as PathLib
-
     with session_scope() as session:
         # Find photos with matching prefix
-        photos = session.query(Photo).filter(
-            Photo.original_path.startswith(old_prefix)
-        ).all()
+        photos = session.query(Photo).filter(Photo.original_path.startswith(old_prefix)).all()
 
         if not photos:
             console.print(f"[yellow]No photos found with prefix: {old_prefix}[/yellow]")
@@ -491,7 +505,7 @@ def relocate(
             new_path = photo.original_path.replace(old_prefix, new_prefix, 1)
 
             if verify_paths:
-                if PathLib(new_path).exists():
+                if Path(new_path).exists():
                     verified += 1
                 else:
                     errors += 1
@@ -516,15 +530,18 @@ def relocate(
 def rescan(
     directory: Path = typer.Argument(..., help="Directory to scan for photos"),
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Preview without changes"),
-    missing_only: bool = typer.Option(False, "--missing-only", "-m", help="Only find missing photos"),
-    recursive: bool = typer.Option(True, "--recursive/--no-recursive", "-r", help="Scan subdirectories"),
+    missing_only: bool = typer.Option(
+        False, "--missing-only", "-m", help="Only find missing photos"
+    ),
+    recursive: bool = typer.Option(
+        True, "--recursive/--no-recursive", "-r", help="Scan subdirectories"
+    ),
 ) -> None:
     """Find moved photos by content hash and update their paths."""
     _require_library()
 
-    from pathlib import Path as PathLib
-    from ptk.core.hasher import hash_file
     from ptk.core.constants import SUPPORTED_FORMATS
+    from ptk.core.hasher import hash_file
 
     if not directory.exists():
         console.print(f"[red]Directory not found: {directory}[/red]")
@@ -535,10 +552,7 @@ def rescan(
         if missing_only:
             # Only look for photos whose paths don't exist
             all_photos = session.query(Photo).all()
-            photo_lookup = {
-                p.id: p for p in all_photos
-                if not PathLib(p.original_path).exists()
-            }
+            photo_lookup = {p.id: p for p in all_photos if not Path(p.original_path).exists()}
             console.print(f"Looking for {len(photo_lookup)} missing photos...")
         else:
             photo_lookup = {p.id: p for p in session.query(Photo).all()}
@@ -551,7 +565,8 @@ def rescan(
         # Collect files to scan
         pattern = "**/*" if recursive else "*"
         files_to_scan = [
-            f for f in directory.glob(pattern)
+            f
+            for f in directory.glob(pattern)
             if f.is_file() and f.suffix.lower() in SUPPORTED_FORMATS
         ]
 
@@ -575,7 +590,7 @@ def rescan(
 
                 try:
                     file_hash = hash_file(file_path)
-                except (IOError, OSError):
+                except OSError:
                     progress.advance(task)
                     continue
 
@@ -605,7 +620,7 @@ def rescan(
             console.print(f"[yellow]Still missing: {still_missing}[/yellow]")
 
         if dry_run and updated > 0:
-            console.print(f"\n[cyan]Dry run: no changes made[/cyan]")
+            console.print("\n[cyan]Dry run: no changes made[/cyan]")
 
 
 # =============================================================================
@@ -618,30 +633,30 @@ app.add_typer(export_app, name="export")
 
 @export_app.command("arkiv")
 def export_arkiv_cmd(
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output directory"),
-    title: Optional[str] = typer.Option(None, "--title", "-t", help="Archive title"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output directory"),
+    title: str | None = typer.Option(None, "--title", "-t", help="Archive title"),
 ) -> None:
     """Export library to arkiv format (JSONL + schema)."""
     _require_library()
 
     from ptk.exports.arkiv import export_arkiv
 
-    output_dir = output or Path("ptk-photos")
+    output_dir = output or Path("photo-memex-export")
     count = export_arkiv(output_dir, title=title)
     console.print(f"[green]Exported {count} photos to {output_dir}/[/green]")
 
 
 @export_app.command("html")
 def export_html_cmd(
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output HTML file"),
-    title: str = typer.Option("ptk Photo Library", "--title", "-t", help="Gallery title"),
+    output: Path | None = typer.Option(None, "--output", "-o", help="Output HTML file"),
+    title: str = typer.Option("photo-memex Photo Library", "--title", "-t", help="Gallery title"),
 ) -> None:
     """Export library as single-file HTML photo browser."""
     _require_library()
 
     from ptk.exports.html import export_html
 
-    output_path = output or Path("ptk-export.html")
+    output_path = output or Path("photo-memex-export.html")
     count = export_html(output_path, title=title)
     console.print(f"[green]Exported {count} photos to {output_path}[/green]")
 
@@ -650,23 +665,17 @@ def export_html_cmd(
 # 9. ptk mcp
 # =============================================================================
 
+
 @app.command()
 def mcp(
-    library: Optional[Path] = typer.Option(None, "--library", "-l", help="Library path"),
+    library: Path | None = typer.Option(None, "--library", "-l", help="Library path"),
 ) -> None:
     """Launch MCP server (stdio) for Claude Code integration."""
-    import os
-
-    lib_path = library
-    if lib_path is None:
+    if library is None:
         env_path = os.environ.get("PTK_LIBRARY")
         if env_path:
-            lib_path = Path(env_path)
-
-    if lib_path:
-        _require_library(lib_path)
-    else:
-        _require_library()
+            library = Path(env_path)
+    _require_library(library)
 
     from ptk.core.config import get_config
     from ptk.mcp.server import run_mcp_server

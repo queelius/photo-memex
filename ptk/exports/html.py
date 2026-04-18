@@ -1,6 +1,7 @@
 """Export ptk library as a single-file HTML photo browser."""
 
 import base64
+import contextlib
 import sqlite3
 import tempfile
 from pathlib import Path
@@ -8,13 +9,13 @@ from pathlib import Path
 from ptk.core.config import get_config
 
 
-def export_html(output_path: Path, title: str = "ptk Photo Library") -> int:
+def export_html(output_path: Path, title: str = "photo-memex Photo Library") -> int:
     """Export the library as a self-contained HTML file.
 
     Uses SQLite's backup API to create a consistent copy of the database
-    (properly handling WAL mode), strips heavy data (embeddings, face blobs),
-    base64-encodes it, and embeds it in an HTML template that uses sql.js
-    to provide an interactive photo browser.
+    (properly handling WAL mode), strips heavy data (embeddings, face blobs
+    from legacy databases), base64-encodes it, and embeds it in an HTML
+    template that uses sql.js to provide an interactive photo browser.
 
     Args:
         output_path: Where to write the HTML file.
@@ -30,25 +31,22 @@ def export_html(output_path: Path, title: str = "ptk Photo Library") -> int:
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
         tmp_path = Path(tmp.name)
 
-    src_conn = sqlite3.connect(str(db_path))
-    dst_conn = sqlite3.connect(str(tmp_path))
-    src_conn.backup(dst_conn)
-    src_conn.close()
-
     try:
+        src_conn = sqlite3.connect(str(db_path))
+        dst_conn = sqlite3.connect(str(tmp_path))
+        src_conn.backup(dst_conn)
+        src_conn.close()
+
         # Get photo count before stripping
         photo_count = dst_conn.execute("SELECT count(*) FROM photos").fetchone()[0]
 
-        # Strip heavy tables/columns
-        try:
-            dst_conn.execute("DELETE FROM photo_embeddings")
-        except sqlite3.OperationalError:
-            pass  # Table might not exist
-
-        try:
-            dst_conn.execute("UPDATE faces SET embedding = NULL, thumbnail_data = NULL")
-        except sqlite3.OperationalError:
-            pass  # Table might not exist
+        # Strip heavy tables/columns (may not exist in newer databases)
+        for stmt in [
+            "DELETE FROM photo_embeddings",
+            "UPDATE faces SET embedding = NULL, thumbnail_data = NULL",
+        ]:
+            with contextlib.suppress(sqlite3.OperationalError):
+                dst_conn.execute(stmt)
 
         dst_conn.commit()
         dst_conn.close()

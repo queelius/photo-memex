@@ -1,7 +1,7 @@
 """Export library to arkiv format (JSONL + README.md + schema.yaml)."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +11,6 @@ from sqlalchemy.orm import joinedload
 from ptk import __version__
 from ptk.db.models import Photo
 from ptk.db.session import session_scope
-
 
 # Metadata fields to extract from Photo, with their attribute names.
 # Optional fields are only included when non-None and non-empty.
@@ -65,8 +64,10 @@ def _photo_to_record(photo: Photo) -> dict[str, Any]:
         metadata["albums"] = sorted(a.name for a in photo.albums)
 
     record: dict[str, Any] = {
+        "kind": "photo",
+        "id": f"photo-memex://photo/{photo.id}",
+        "source_path": Path(photo.original_path).as_uri(),
         "mimetype": photo.mime_type,
-        "uri": Path(photo.original_path).as_uri(),
         "metadata": metadata,
     }
 
@@ -128,6 +129,7 @@ def export_arkiv(output_dir: Path, title: str | None = None) -> int:
     with session_scope() as session:
         photos = (
             session.query(Photo)
+            .filter(Photo.archived_at.is_(None))
             .options(joinedload(Photo.tags), joinedload(Photo.albums))
             .all()
         )
@@ -143,13 +145,13 @@ def export_arkiv(output_dir: Path, title: str | None = None) -> int:
             f.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
 
     # Write README.md
-    now = datetime.now(timezone.utc)
-    archive_name = title or "ptk photo library"
+    now = datetime.now(UTC)
+    archive_name = title or "photo-memex library"
     frontmatter = {
         "name": archive_name,
-        "description": f"Photo library exported from ptk ({count} photos)",
+        "description": f"Photo library exported from photo-memex ({count} photos)",
         "datetime": now.isoformat(),
-        "generator": f"ptk {__version__}",
+        "generator": f"photo-memex {__version__}",
         "contents": [
             {
                 "path": "photos.jsonl",

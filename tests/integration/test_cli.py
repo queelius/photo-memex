@@ -15,14 +15,14 @@ def test_version():
     """Test --version flag."""
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
-    assert "ptk version" in result.output
+    assert "photo-memex version" in result.output
 
 
 def test_help():
     """Test --help flag."""
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    assert "Photo Toolkit" in result.output
+    assert "photo-memex" in result.output
 
 
 def test_init_creates_database(temp_dir: Path):

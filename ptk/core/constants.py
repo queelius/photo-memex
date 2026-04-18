@@ -23,11 +23,10 @@ DEFAULT_THUMBNAIL_FORMAT: Final[str] = "webp"
 DEFAULT_THUMBNAIL_QUALITY: Final[int] = 85
 
 # Database
-DEFAULT_DATABASE_NAME: Final[str] = "ptk.db"
+DEFAULT_DATABASE_NAME: Final[str] = "photo-memex.db"
 
 # XDG paths
-APP_NAME: Final[str] = "ptk"
-CONFIG_FILENAME: Final[str] = "config.toml"
+APP_NAME: Final[str] = "photo-memex"
 
 # Hashing
 HASH_CHUNK_SIZE: Final[int] = 65536  # 64KB chunks for file hashing

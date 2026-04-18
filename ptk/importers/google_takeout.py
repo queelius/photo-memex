@@ -96,8 +96,7 @@ class GoogleTakeoutImporter(BaseImporter):
                 data = json.load(f)
                 # Google sidecar files have these characteristic keys
                 return any(
-                    key in data
-                    for key in ["photoTakenTime", "creationTime", "geoData", "title"]
+                    key in data for key in ["photoTakenTime", "creationTime", "geoData", "title"]
                 )
         except (json.JSONDecodeError, OSError, UnicodeDecodeError):
             return False
@@ -133,7 +132,6 @@ class GoogleTakeoutImporter(BaseImporter):
         Extracts files to a temporary directory for processing.
         """
         import tempfile
-        import shutil
 
         with tempfile.TemporaryDirectory(prefix="ptk_takeout_") as temp_dir:
             temp_path = Path(temp_dir)
@@ -178,9 +176,7 @@ class GoogleTakeoutImporter(BaseImporter):
         # Handle edited versions (photo-edited.jpg -> photo.jpg.json)
         if "-edited" in media_path.stem:
             base_name = media_path.stem.replace("-edited", "")
-            candidates.append(
-                media_path.parent / f"{base_name}{media_path.suffix}.json"
-            )
+            candidates.append(media_path.parent / f"{base_name}{media_path.suffix}.json")
 
         for sidecar_path in candidates:
             if sidecar_path.exists():

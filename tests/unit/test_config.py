@@ -1,7 +1,8 @@
 """Tests for ptk.core.config."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from ptk.core.config import PtkConfig, find_library
 from ptk.core.constants import DEFAULT_DATABASE_NAME
@@ -61,14 +62,8 @@ def test_find_library_not_found(temp_dir: Path):
     assert result is None
 
 
-def test_xdg_paths():
-    """Test XDG path methods exist and return paths."""
-    config_dir = PtkConfig.config_dir()
-    assert isinstance(config_dir, Path)
-    assert "ptk" in str(config_dir)
-
+def test_default_library_path():
+    """Test that default_library_path returns a valid path."""
     default_lib = PtkConfig.default_library_path()
     assert isinstance(default_lib, Path)
-
-    cache_dir = PtkConfig.cache_dir()
-    assert isinstance(cache_dir, Path)
+    assert "photo-memex" in str(default_lib)

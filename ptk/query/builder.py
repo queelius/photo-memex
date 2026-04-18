@@ -5,7 +5,7 @@ For complex queries, use raw SQL.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -20,12 +20,12 @@ class QueryBuilder:
         sql, params = builder.build()
     """
     # Filter state
-    _favorite: Optional[bool] = None
+    _favorite: bool | None = None
     _uncaptioned: bool = False
     _tags: list[str] = field(default_factory=list)
     _albums: list[str] = field(default_factory=list)
-    _limit: Optional[int] = None
-    _offset: Optional[int] = None
+    _limit: int | None = None
+    _offset: int | None = None
 
     # SQL building state
     _params: dict[str, Any] = field(default_factory=dict)
@@ -74,6 +74,9 @@ class QueryBuilder:
         sql = "SELECT DISTINCT p.* FROM photos p"
         joins = []
         where = []
+
+        # Soft delete: exclude archived photos by default
+        where.append("p.archived_at IS NULL")
 
         # Favorite filter
         if self._favorite is not None:

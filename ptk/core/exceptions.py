@@ -45,14 +45,3 @@ class ExifExtractionError(PtkError):
 class ThumbnailError(PtkError):
     """Raised when thumbnail generation fails."""
     pass
-
-
-class AIFeatureNotAvailable(PtkError):
-    """Raised when an AI feature is requested but dependencies are not installed."""
-
-    def __init__(self, feature: str, install_hint: str):
-        self.feature = feature
-        self.install_hint = install_hint
-        super().__init__(
-            f"{feature} requires additional dependencies. Install with: {install_hint}"
-        )

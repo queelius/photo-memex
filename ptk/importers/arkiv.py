@@ -274,9 +274,7 @@ def import_arkiv(path: str | Path, *, merge: bool = False) -> Dict[str, int]:
         resolve to a local photo; the note is still created with
         ``photo_id=None`` (orphan-survival contract).
     """
-    from sqlalchemy import select
-
-    from ptk.db.models import Album, Marginalia, Photo, Tag
+    from ptk.db.models import Marginalia, Photo
     from ptk.db.session import session_scope
 
     stats = {

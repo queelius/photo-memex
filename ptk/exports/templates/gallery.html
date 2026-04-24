@@ -130,12 +130,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   </div>
 </div>
 
-<script type="application/x-sqlite3" id="db-data">{{DB_BASE64}}</script>
+<!-- Vendored sql.js body inlined by the exporter (no CDN). -->
+<script>{{SQLJS_INLINE}}</script>
+<!-- Base64 sql-wasm.wasm, decoded to Uint8Array below. -->
+<script id="pm-wasm-b64" type="application/base64">{{WASM_BASE64}}</script>
+<!-- Gzipped SQLite database, decoded client-side via DecompressionStream. -->
+<script id="pm-db-b64" type="application/base64">{{DB_BASE64_GZ}}</script>
 
 <script>
-// sql.js CDN
-var SQL_JS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js";
-
 var db = null;
 var currentPhotos = [];
 var currentPage = 0;
@@ -143,27 +145,32 @@ var PAGE_SIZE = 60;
 var filters = { search: "", favorites: false, videos: false, tags: [], albums: [] };
 var currentLightboxIndex = -1;
 
+function _readInlineBase64(id) {
+  var n = document.getElementById(id);
+  return n ? (n.textContent || "").trim() : "";
+}
+function _base64ToBytes(b64) {
+  var bin = atob(b64.replace(/\s/g, ""));
+  var out = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+async function _gunzip(bytes) {
+  var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
 async function init() {
-  // Load sql.js
-  var script = document.createElement("script");
-  script.src = SQL_JS_CDN;
-  document.head.appendChild(script);
-
-  await new Promise(function(resolve, reject) {
-    script.onload = resolve;
-    script.onerror = function() { reject(new Error("Failed to load sql.js from CDN")); };
-  });
-
+  // sql.js init with an inlined wasm binary — no CDN, no file fetch.
+  var wasmBinary = _base64ToBytes(_readInlineBase64("pm-wasm-b64"));
   var SQL = await initSqlJs({
-    locateFile: function(file) { return "https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/" + file; }
+    wasmBinary: wasmBinary,
+    locateFile: function() { return "data:application/wasm;base64,"; }
   });
 
-  // Decode embedded DB
-  var b64 = document.getElementById("db-data").textContent.trim();
-  var binary = atob(b64);
-  var bytes = new Uint8Array(binary.length);
-  for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-
+  // Gzipped DB -> Uint8Array -> sql.js.
+  var gz = _base64ToBytes(_readInlineBase64("pm-db-b64"));
+  var bytes = await _gunzip(gz);
   db = new SQL.Database(bytes);
 
   // Initialize UI

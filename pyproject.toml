@@ -57,6 +57,12 @@ Repository = "https://github.com/queelius/photo-memex"
 [tool.hatch.build.targets.wheel]
 packages = ["ptk"]
 
+[tool.hatch.build.targets.wheel.force-include]
+# Ship vendored sql.js + SPA assets so the HTML exporter works without a CDN.
+"ptk/exports/vendored/sql-wasm.js" = "ptk/exports/vendored/sql-wasm.js"
+"ptk/exports/vendored/sql-wasm.wasm" = "ptk/exports/vendored/sql-wasm.wasm"
+"ptk/exports/templates/gallery.html" = "ptk/exports/templates/gallery.html"
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100

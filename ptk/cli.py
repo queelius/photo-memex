@@ -633,17 +633,74 @@ app.add_typer(export_app, name="export")
 
 @export_app.command("arkiv")
 def export_arkiv_cmd(
-    output: Path | None = typer.Option(None, "--output", "-o", help="Output directory"),
+    output: Path | None = typer.Option(None, "--output", "-o", help=(
+        "Output path. If it ends in .zip or .tar.gz/.tgz the bundle is "
+        "written as a single compressed archive; any other path is a "
+        "directory containing records.jsonl, schema.yaml, and README.md."
+    )),
     title: str | None = typer.Option(None, "--title", "-t", help="Archive title"),
 ) -> None:
-    """Export library to arkiv format (JSONL + schema)."""
+    """Export library to an arkiv bundle (directory / .zip / .tar.gz)."""
     _require_library()
 
     from ptk.exports.arkiv import export_arkiv
 
-    output_dir = output or Path("photo-memex-export")
-    count = export_arkiv(output_dir, title=title)
-    console.print(f"[green]Exported {count} photos to {output_dir}/[/green]")
+    output_path = output or Path("photo-memex-export")
+    count = export_arkiv(output_path, title=title)
+    console.print(f"[green]Exported {count} photos to {output_path}[/green]")
+
+
+@app.command("import-arkiv")
+def import_arkiv_cmd(
+    path: Path = typer.Argument(..., help=(
+        "Path to an arkiv bundle (directory, .zip, .tar.gz, .tgz, "
+        ".jsonl, or .jsonl.gz)."
+    )),
+    merge: bool = typer.Option(
+        False, "--merge",
+        help=(
+            "Accepted for ecosystem parity; the default insert path is "
+            "already duplicate-safe. Reserved for a future stricter mode."
+        ),
+    ),
+) -> None:
+    """Import photos and marginalia from an arkiv bundle.
+
+    Photos are inserted or skipped by SHA256 primary key; existing
+    rows are left untouched (local captions, tags, albums, faces
+    survive). Tag and album names in the bundle are merged into the
+    local catalogue; never removed. Marginalia are inserted or
+    skipped by a (photo_id, body) content signature for idempotent
+    re-imports. Orphan marginalia (photo_uri unresolved locally) are
+    still created with photo_id=None.
+
+    The bundle does NOT carry image file payloads. Matching files are
+    reconciled later by running regular ``photo-memex import`` against
+    the same SHA256-bearing content.
+    """
+    _require_library()
+
+    from ptk.importers.arkiv import detect, import_arkiv
+
+    if not detect(path):
+        console.print(
+            f"[red]{path} does not look like a photo-memex arkiv bundle[/red]"
+        )
+        raise typer.Exit(1)
+
+    stats = import_arkiv(path, merge=merge)
+    console.print(
+        f"[green]Photos: {stats['photos_added']} added, "
+        f"{stats['photos_skipped_existing']} skipped (already present)[/green]"
+    )
+    if stats["marginalia_seen"]:
+        orphaned = stats["marginalia_orphaned"]
+        console.print(
+            f"[green]Marginalia: {stats['marginalia_added']} added, "
+            f"{stats['marginalia_skipped_existing']} skipped"
+            + (f", {orphaned} orphaned (photo not found)" if orphaned else "")
+            + "[/green]"
+        )
 
 
 @export_app.command("html")

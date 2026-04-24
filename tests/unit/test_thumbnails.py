@@ -1,4 +1,4 @@
-"""Tests for ptk.core.thumbnails."""
+"""Tests for photo_memex.core.thumbnails."""
 
 import pytest
 from pathlib import Path
@@ -6,7 +6,7 @@ from io import BytesIO
 
 from PIL import Image
 
-from ptk.core.thumbnails import (
+from photo_memex.core.thumbnails import (
     generate_thumbnail,
     get_image_dimensions,
     ThumbnailError,
@@ -74,7 +74,7 @@ def test_get_image_dimensions_nonexistent():
 
 def test_generate_thumbnail_nonexistent_file():
     """Test thumbnail generation with nonexistent file."""
-    from ptk.core.exceptions import ThumbnailError
+    from photo_memex.core.exceptions import ThumbnailError
 
     with pytest.raises(ThumbnailError):
         generate_thumbnail(Path("/nonexistent/file.jpg"))

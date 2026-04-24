@@ -7,13 +7,13 @@ from typing import Optional, Callable
 
 from sqlalchemy.orm import Session
 
-from ptk.core.config import PtkConfig
-from ptk.core.constants import SUPPORTED_VIDEO_FORMATS
-from ptk.core.exif import extract_exif, ExifExtractionError
-from ptk.core.hasher import hash_file
-from ptk.core.thumbnails import generate_thumbnail, get_image_dimensions, ThumbnailError
-from ptk.db.models import Photo
-from ptk.importers.base import BaseImporter, ImportItem, ImportResult
+from photo_memex.core.config import PtkConfig
+from photo_memex.core.constants import SUPPORTED_VIDEO_FORMATS
+from photo_memex.core.exif import extract_exif, ExifExtractionError
+from photo_memex.core.hasher import hash_file
+from photo_memex.core.thumbnails import generate_thumbnail, get_image_dimensions, ThumbnailError
+from photo_memex.db.models import Photo
+from photo_memex.importers.base import BaseImporter, ImportItem, ImportResult
 
 
 # Progress callback type: (current, total, path)

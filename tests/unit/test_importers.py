@@ -1,10 +1,10 @@
-"""Tests for ptk.importers."""
+"""Tests for photo_memex.importers."""
 
 import pytest
 from pathlib import Path
 
-from ptk.importers.filesystem import FilesystemImporter
-from ptk.importers.base import ImportItem
+from photo_memex.importers.filesystem import FilesystemImporter
+from photo_memex.importers.base import ImportItem
 
 
 def test_filesystem_importer_name():

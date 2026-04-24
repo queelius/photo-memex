@@ -1,4 +1,4 @@
-"""Export ptk library as a single-file HTML photo browser.
+"""Export photo-memex library as a single-file HTML photo browser.
 
 Workspace C6 contract: one self-contained ``.html`` with
 
@@ -23,7 +23,7 @@ import sqlite3
 import tempfile
 from pathlib import Path
 
-from ptk.core.config import get_config
+from photo_memex.core.config import get_config
 
 
 _VENDORED_DIR = Path(__file__).parent / "vendored"

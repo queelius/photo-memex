@@ -1,4 +1,4 @@
-"""Base importer interface for ptk."""
+"""Base importer interface for photo-memex."""
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field

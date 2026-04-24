@@ -8,7 +8,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from ptk.core.constants import (
+from photo_memex.core.constants import (
     APP_NAME,
     DEFAULT_DATABASE_NAME,
     DEFAULT_THUMBNAIL_FORMAT,

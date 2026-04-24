@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
-from ptk.db.models import Base
+from photo_memex.db.models import Base
 
 # Module-level engine and session factory
 _engine: Engine | None = None

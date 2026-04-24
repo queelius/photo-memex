@@ -1,10 +1,10 @@
-"""Tests for ptk.importers.apple_photos."""
+"""Tests for photo_memex.importers.apple_photos."""
 
 import plistlib
 import pytest
 from pathlib import Path
 
-from ptk.importers.apple_photos import ApplePhotosImporter
+from photo_memex.importers.apple_photos import ApplePhotosImporter
 
 
 @pytest.fixture

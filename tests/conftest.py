@@ -7,8 +7,8 @@ from typing import Generator
 import pytest
 from PIL import Image
 
-from ptk.core.config import PtkConfig, set_config
-from ptk.db.session import init_db, close_db, get_session
+from photo_memex.core.config import PtkConfig, set_config
+from photo_memex.db.session import init_db, close_db, get_session
 
 
 @pytest.fixture
@@ -92,9 +92,9 @@ def db_session(test_library: Path):
 @pytest.fixture
 def populated_library(test_library: Path, sample_image: Path):
     """Create a library with some sample photos."""
-    from ptk.importers.filesystem import FilesystemImporter
-    from ptk.services.import_service import ImportService
-    from ptk.core.config import get_config
+    from photo_memex.importers.filesystem import FilesystemImporter
+    from photo_memex.services.import_service import ImportService
+    from photo_memex.core.config import get_config
 
     session = get_session()
     config = get_config()

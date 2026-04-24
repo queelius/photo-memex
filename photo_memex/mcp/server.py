@@ -12,8 +12,8 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from ptk.db.models import Album, Event, Face, Person, Photo, Tag
-from ptk.db.session import session_scope
+from photo_memex.db.models import Album, Event, Face, Person, Photo, Tag
+from photo_memex.db.session import session_scope
 
 
 def _active_names(items) -> list[str]:

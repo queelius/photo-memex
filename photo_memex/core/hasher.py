@@ -3,7 +3,7 @@
 import hashlib
 from pathlib import Path
 
-from ptk.core.constants import HASH_CHUNK_SIZE
+from photo_memex.core.constants import HASH_CHUNK_SIZE
 
 
 def hash_file(path: Path) -> str:

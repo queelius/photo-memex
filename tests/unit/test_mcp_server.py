@@ -5,10 +5,10 @@ from datetime import UTC, datetime
 
 import pytest
 
-from ptk.core.config import get_config
-from ptk.db.models import Album, Event, Face, Person, Photo, Tag
-from ptk.db.session import session_scope
-from ptk.mcp.server import PtkServer
+from photo_memex.core.config import get_config
+from photo_memex.db.models import Album, Event, Face, Person, Photo, Tag
+from photo_memex.db.session import session_scope
+from photo_memex.mcp.server import PtkServer
 
 
 @pytest.fixture

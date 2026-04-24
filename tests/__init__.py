@@ -1,1 +1,1 @@
-"""Tests for ptk."""
+"""Tests for photo_memex."""

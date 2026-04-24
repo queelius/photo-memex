@@ -6,12 +6,12 @@ from typing import Optional, Tuple
 
 from PIL import Image
 
-from ptk.core.constants import (
+from photo_memex.core.constants import (
     DEFAULT_THUMBNAIL_SIZE,
     DEFAULT_THUMBNAIL_FORMAT,
     DEFAULT_THUMBNAIL_QUALITY,
 )
-from ptk.core.exceptions import ThumbnailError
+from photo_memex.core.exceptions import ThumbnailError
 
 
 def generate_thumbnail(

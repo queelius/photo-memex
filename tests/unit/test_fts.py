@@ -3,8 +3,8 @@
 import sqlite3
 from datetime import UTC, datetime
 
-from ptk.db.models import Photo
-from ptk.db.session import get_engine
+from photo_memex.db.models import Photo
+from photo_memex.db.session import get_engine
 
 
 def _raw_conn() -> sqlite3.Connection:

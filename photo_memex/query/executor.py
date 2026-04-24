@@ -8,8 +8,8 @@ from typing import Any, Optional, List
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from ptk.db.models import Photo
-from ptk.query.builder import QueryBuilder
+from photo_memex.db.models import Photo
+from photo_memex.query.builder import QueryBuilder
 
 
 class OutputFormat(Enum):

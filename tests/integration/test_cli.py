@@ -4,8 +4,8 @@ import pytest
 from pathlib import Path
 from typer.testing import CliRunner
 
-from ptk.cli import app
-from ptk.core.constants import DEFAULT_DATABASE_NAME
+from photo_memex.cli import app
+from photo_memex.core.constants import DEFAULT_DATABASE_NAME
 
 
 runner = CliRunner()

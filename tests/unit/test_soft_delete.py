@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from ptk.db.models import Album, Event, Face, Person, Photo, Tag
+from photo_memex.db.models import Album, Event, Face, Person, Photo, Tag
 
 
 class TestSoftDeleteColumns:
@@ -61,14 +61,14 @@ class TestQueryBuilderFiltersArchived:
     """QueryBuilder should exclude archived photos by default."""
 
     def test_excludes_archived_in_sql(self, populated_library):
-        from ptk.query import QueryBuilder
+        from photo_memex.query import QueryBuilder
 
         builder = QueryBuilder()
         sql, params = builder.build()
         assert "archived_at IS NULL" in sql
 
     def test_no_results_when_all_archived(self, populated_library, db_session):
-        from ptk.query import QueryBuilder, execute_query
+        from photo_memex.query import QueryBuilder, execute_query
 
         photo = db_session.query(Photo).first()
         photo.archived_at = datetime.now(UTC)

@@ -32,9 +32,9 @@ from typing import Any, Dict, Iterable, List
 import yaml
 from sqlalchemy.orm import joinedload
 
-from ptk import __version__
-from ptk.db.models import Marginalia, Photo
-from ptk.db.session import session_scope
+from photo_memex import __version__
+from photo_memex.db.models import Marginalia, Photo
+from photo_memex.db.session import session_scope
 
 
 # Metadata fields to extract from Photo, with their attribute names.

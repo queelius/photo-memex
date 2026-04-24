@@ -18,11 +18,11 @@ from rich.console import Console
 from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
 from rich.table import Table
 
-from ptk import __version__
-from ptk.core.config import PtkConfig, find_library, set_config
-from ptk.core.constants import DEFAULT_DATABASE_NAME
-from ptk.db.models import Album, Photo, Tag
-from ptk.db.session import init_db, session_scope
+from photo_memex import __version__
+from photo_memex.core.config import PtkConfig, find_library, set_config
+from photo_memex.core.constants import DEFAULT_DATABASE_NAME
+from photo_memex.db.models import Album, Photo, Tag
+from photo_memex.db.session import init_db, session_scope
 
 app = typer.Typer(
     name="photo-memex",
@@ -123,9 +123,9 @@ def import_photos(
 
     _require_library()
 
-    from ptk.core.config import get_config
-    from ptk.importers.filesystem import FilesystemImporter
-    from ptk.services.import_service import ImportService
+    from photo_memex.core.config import get_config
+    from photo_memex.importers.filesystem import FilesystemImporter
+    from photo_memex.services.import_service import ImportService
 
     # Auto-detect source type
     if source is None:
@@ -139,11 +139,11 @@ def import_photos(
     if source == "dir":
         importer = FilesystemImporter(recursive=recursive)
     elif source == "google":
-        from ptk.importers.google_takeout import GoogleTakeoutImporter
+        from photo_memex.importers.google_takeout import GoogleTakeoutImporter
 
         importer = GoogleTakeoutImporter()
     elif source == "apple":
-        from ptk.importers.apple_photos import ApplePhotosImporter
+        from photo_memex.importers.apple_photos import ApplePhotosImporter
 
         importer = ApplePhotosImporter()
     else:
@@ -213,7 +213,7 @@ def query(
     """
     _require_library()
 
-    from ptk.query import OutputFormat, QueryBuilder, execute_query, execute_sql
+    from photo_memex.query import OutputFormat, QueryBuilder, execute_query, execute_sql
 
     with session_scope() as session:
         if sql:
@@ -540,8 +540,8 @@ def rescan(
     """Find moved photos by content hash and update their paths."""
     _require_library()
 
-    from ptk.core.constants import SUPPORTED_FORMATS
-    from ptk.core.hasher import hash_file
+    from photo_memex.core.constants import SUPPORTED_FORMATS
+    from photo_memex.core.hasher import hash_file
 
     if not directory.exists():
         console.print(f"[red]Directory not found: {directory}[/red]")
@@ -643,7 +643,7 @@ def export_arkiv_cmd(
     """Export library to an arkiv bundle (directory / .zip / .tar.gz)."""
     _require_library()
 
-    from ptk.exports.arkiv import export_arkiv
+    from photo_memex.exports.arkiv import export_arkiv
 
     output_path = output or Path("photo-memex-export")
     count = export_arkiv(output_path, title=title)
@@ -680,7 +680,7 @@ def import_arkiv_cmd(
     """
     _require_library()
 
-    from ptk.importers.arkiv import detect, import_arkiv
+    from photo_memex.importers.arkiv import detect, import_arkiv
 
     if not detect(path):
         console.print(
@@ -711,7 +711,7 @@ def export_html_cmd(
     """Export library as single-file HTML photo browser."""
     _require_library()
 
-    from ptk.exports.html import export_html
+    from photo_memex.exports.html import export_html
 
     output_path = output or Path("photo-memex-export.html")
     count = export_html(output_path, title=title)
@@ -734,8 +734,8 @@ def mcp(
             library = Path(env_path)
     _require_library(library)
 
-    from ptk.core.config import get_config
-    from ptk.mcp.server import run_mcp_server
+    from photo_memex.core.config import get_config
+    from photo_memex.mcp.server import run_mcp_server
 
     run_mcp_server(str(get_config().database_path))
 

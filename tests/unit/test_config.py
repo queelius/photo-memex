@@ -1,11 +1,11 @@
-"""Tests for ptk.core.config."""
+"""Tests for photo_memex.core.config."""
 
 from pathlib import Path
 
 import pytest
 
-from ptk.core.config import PtkConfig, find_library
-from ptk.core.constants import DEFAULT_DATABASE_NAME
+from photo_memex.core.config import PtkConfig, find_library
+from photo_memex.core.constants import DEFAULT_DATABASE_NAME
 
 
 def test_default_config():

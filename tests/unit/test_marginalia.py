@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from ptk.db.models import Marginalia, Photo
+from photo_memex.db.models import Marginalia, Photo
 
 
 class TestMarginaliaModel:

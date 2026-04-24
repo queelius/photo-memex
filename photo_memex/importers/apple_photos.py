@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator, Optional, Any
 
-from ptk.core.constants import SUPPORTED_FORMATS
-from ptk.importers.base import BaseImporter, ImportItem
+from photo_memex.core.constants import SUPPORTED_FORMATS
+from photo_memex.importers.base import BaseImporter, ImportItem
 
 
 class ApplePhotosImporter(BaseImporter):

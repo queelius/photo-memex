@@ -3,9 +3,9 @@
 import json
 from datetime import datetime, timezone
 
-from ptk.query.builder import QueryBuilder
-from ptk.query.executor import OutputFormat, QueryResult
-from ptk.db.models import Photo
+from photo_memex.query.builder import QueryBuilder
+from photo_memex.query.executor import OutputFormat, QueryResult
+from photo_memex.db.models import Photo
 
 
 class TestQueryBuilder:

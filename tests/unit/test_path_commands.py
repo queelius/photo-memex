@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from ptk.cli import app
-from ptk.db.models import Photo, Tag
+from photo_memex.cli import app
+from photo_memex.db.models import Photo, Tag
 
 
 runner = CliRunner()
@@ -30,8 +30,8 @@ class TestVerifyCommand:
         assert result.exit_code == 0
         assert "Verify all photo paths exist on disk" in result.output
 
-    @patch("ptk.cli._require_library")
-    @patch("ptk.cli.session_scope")
+    @patch("photo_memex.cli._require_library")
+    @patch("photo_memex.cli.session_scope")
     def test_verify_all_found(self, mock_scope, mock_require):
         """Test verify when all photos exist."""
         # Create a temp file that exists
@@ -55,8 +55,8 @@ class TestVerifyCommand:
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
-    @patch("ptk.cli._require_library")
-    @patch("ptk.cli.session_scope")
+    @patch("photo_memex.cli._require_library")
+    @patch("photo_memex.cli.session_scope")
     def test_verify_missing_photo(self, mock_scope, mock_require):
         """Test verify when a photo is missing."""
         mock_photo = MagicMock()
@@ -73,8 +73,8 @@ class TestVerifyCommand:
         assert "Found: 0" in result.output
         assert "Missing: 1" in result.output
 
-    @patch("ptk.cli._require_library")
-    @patch("ptk.cli.session_scope")
+    @patch("photo_memex.cli._require_library")
+    @patch("photo_memex.cli.session_scope")
     def test_verify_empty_library(self, mock_scope, mock_require):
         """Test verify with no photos."""
         mock_session = MagicMock()
@@ -96,8 +96,8 @@ class TestRelocateCommand:
         assert result.exit_code == 0
         assert "Bulk update path prefixes" in result.output
 
-    @patch("ptk.cli._require_library")
-    @patch("ptk.cli.session_scope")
+    @patch("photo_memex.cli._require_library")
+    @patch("photo_memex.cli.session_scope")
     def test_relocate_dry_run(self, mock_scope, mock_require):
         """Test relocate with --dry-run."""
         mock_photo = MagicMock()
@@ -114,8 +114,8 @@ class TestRelocateCommand:
         # Path should NOT be changed in dry run
         assert mock_photo.original_path == "/old/path/photo.jpg"
 
-    @patch("ptk.cli._require_library")
-    @patch("ptk.cli.session_scope")
+    @patch("photo_memex.cli._require_library")
+    @patch("photo_memex.cli.session_scope")
     def test_relocate_updates_path(self, mock_scope, mock_require):
         """Test relocate actually updates paths."""
         mock_photo = MagicMock()
@@ -131,8 +131,8 @@ class TestRelocateCommand:
         assert "Updated: 1" in result.output
         assert mock_photo.original_path == "/new/path/photo.jpg"
 
-    @patch("ptk.cli._require_library")
-    @patch("ptk.cli.session_scope")
+    @patch("photo_memex.cli._require_library")
+    @patch("photo_memex.cli.session_scope")
     def test_relocate_no_matches(self, mock_scope, mock_require):
         """Test relocate when no paths match."""
         mock_session = MagicMock()
@@ -154,7 +154,7 @@ class TestRescanCommand:
         assert result.exit_code == 0
         assert "Find moved photos by content hash" in result.output
 
-    @patch("ptk.cli._require_library")
+    @patch("photo_memex.cli._require_library")
     def test_rescan_nonexistent_directory(self, mock_require):
         """Test rescan with nonexistent directory."""
         result = runner.invoke(app, ["rescan", "/nonexistent/directory"])
@@ -162,8 +162,8 @@ class TestRescanCommand:
         assert result.exit_code == 1
         assert "Directory not found" in result.output
 
-    @patch("ptk.cli._require_library")
-    @patch("ptk.cli.session_scope")
+    @patch("photo_memex.cli._require_library")
+    @patch("photo_memex.cli.session_scope")
     def test_rescan_empty_library(self, mock_scope, mock_require):
         """Test rescan with no photos in library."""
         mock_session = MagicMock()
@@ -176,9 +176,9 @@ class TestRescanCommand:
         assert result.exit_code == 0
         assert "No photos to search for" in result.output
 
-    @patch("ptk.cli._require_library")
-    @patch("ptk.cli.session_scope")
-    @patch("ptk.core.hasher.hash_file")
+    @patch("photo_memex.cli._require_library")
+    @patch("photo_memex.cli.session_scope")
+    @patch("photo_memex.core.hasher.hash_file")
     def test_rescan_finds_moved_photo(self, mock_hash, mock_scope, mock_require):
         """Test rescan finds and updates a moved photo."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -205,9 +205,9 @@ class TestRescanCommand:
             assert "Found: 1 photos" in result.output
             assert "Updated paths: 1" in result.output
 
-    @patch("ptk.cli._require_library")
-    @patch("ptk.cli.session_scope")
-    @patch("ptk.core.hasher.hash_file")
+    @patch("photo_memex.cli._require_library")
+    @patch("photo_memex.cli.session_scope")
+    @patch("photo_memex.core.hasher.hash_file")
     def test_rescan_dry_run(self, mock_hash, mock_scope, mock_require):
         """Test rescan --dry-run doesn't modify."""
         with tempfile.TemporaryDirectory() as tmpdir:

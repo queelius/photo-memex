@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-**photo-memex** (directory `ptk/`, Python package `ptk`, pending rename). Personal photo library manager and photo-domain archive of the `*-memex` family. See `~/github/memex/CLAUDE.md` for ecosystem conventions and the 7-item archive contract.
+**photo-memex** (Python package `photo_memex`; the `ptk` name is retained as a CLI alias for backward compatibility). Personal photo library manager and photo-domain archive of the `*-memex` family. See `~/github/memex/CLAUDE.md` for ecosystem conventions and the 7-item archive contract.
 
 SQLAlchemy + SQLite backend with FTS5, SHA256 content hash as Photo primary key, multi-source import (filesystem, Google Takeout, Apple Photos), MCP server with 21 tools, CLI, arkiv/HTML export. AI annotation delegated to Claude Code via MCP (no built-in AI providers).
 
@@ -19,17 +19,17 @@ pytest                          # All tests
 pytest tests/unit/              # Fast unit tests only
 pytest tests/integration/       # Integration tests only
 pytest -v -k "test_query"       # Run specific tests by name
-pytest --cov=ptk                # With coverage
+pytest --cov=photo_memex                # With coverage
 
 # Linting
-ruff check ptk tests
-ruff format ptk tests
+ruff check photo_memex tests
+ruff format photo_memex tests
 ```
 
 ## Architecture
 
 - **SQLite-backed** metadata storage (`photo-memex.db`), no migration system. `Base.metadata.create_all()` on `ptk init`.
-- **CLI-first** using Typer sub-apps + Rich. Entry points: `photo-memex` and `ptk` (backward-compat alias), both map to `ptk.cli:app`.
+- **CLI-first** using Typer sub-apps + Rich. Entry points: `photo-memex` and `ptk` (backward-compat alias), both map to `photo_memex.cli:app`.
 - **SHA256 deduplication**: content hash is the Photo primary key.
 - **MCP server**: stdio-based, dual-connection architecture (raw sqlite3 for read-only SQL, SQLAlchemy `session_scope()` for writes). 21 tools for querying, annotating, tagging, and organizing photos.
 - **Global singletons**: `db/session.py` (engine, sessionmaker), `core/config.py` (PtkConfig). Tests must call `close_db()` in teardown to reset module-level state between test cases.

@@ -5,7 +5,7 @@ import pytest
 from pathlib import Path
 from typer.testing import CliRunner
 
-from ptk.cli import app
+from photo_memex.cli import app
 
 
 runner = CliRunner()

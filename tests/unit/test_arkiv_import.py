@@ -1,4 +1,4 @@
-"""Tests for the arkiv importer (ptk.importers.arkiv).
+"""Tests for the arkiv importer (photo_memex.importers.arkiv).
 
 Covers the full workspace C5b contract: five bundle shapes auto-detected,
 round-trip through the exporter, idempotent re-imports, orphan
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from ptk.db.models import Album, Marginalia, Photo, Tag
+from photo_memex.db.models import Album, Marginalia, Photo, Tag
 
 
 @pytest.fixture
@@ -43,7 +43,7 @@ def library_with_photo_and_marginalia(populated_library, db_session):
 
 
 def _export_bundle(out_path: Path) -> int:
-    from ptk.exports.arkiv import export_arkiv
+    from photo_memex.exports.arkiv import export_arkiv
 
     return export_arkiv(out_path)
 
@@ -55,31 +55,31 @@ def _export_bundle(out_path: Path) -> int:
 
 class TestHelpers:
     def test_parse_timestamp_iso(self):
-        from ptk.importers.arkiv import _parse_timestamp
+        from photo_memex.importers.arkiv import _parse_timestamp
 
         ts = _parse_timestamp("2026-04-24T12:34:56+00:00")
         assert ts is not None
         assert ts.hour == 12
 
     def test_parse_timestamp_none(self):
-        from ptk.importers.arkiv import _parse_timestamp
+        from photo_memex.importers.arkiv import _parse_timestamp
 
         assert _parse_timestamp(None) is None
         assert _parse_timestamp("") is None
 
     def test_sha256_from_photo_uri(self):
-        from ptk.importers.arkiv import _sha256_from_photo_uri
+        from photo_memex.importers.arkiv import _sha256_from_photo_uri
 
         sha = "a" * 64
         assert _sha256_from_photo_uri(f"photo-memex://photo/{sha}") == sha
 
     def test_sha256_from_photo_uri_wrong_scheme(self):
-        from ptk.importers.arkiv import _sha256_from_photo_uri
+        from photo_memex.importers.arkiv import _sha256_from_photo_uri
 
         assert _sha256_from_photo_uri("file:///tmp/foo") is None
 
     def test_is_record_accepts_photo(self):
-        from ptk.importers.arkiv import _is_photo_memex_record
+        from photo_memex.importers.arkiv import _is_photo_memex_record
 
         assert _is_photo_memex_record(
             {
@@ -90,7 +90,7 @@ class TestHelpers:
         )
 
     def test_is_record_rejects_unknown_kind(self):
-        from ptk.importers.arkiv import _is_photo_memex_record
+        from photo_memex.importers.arkiv import _is_photo_memex_record
 
         assert not _is_photo_memex_record({"kind": "email", "uri": "x"})
 
@@ -102,35 +102,35 @@ class TestHelpers:
 
 class TestDetect:
     def test_detect_directory(self, library_with_photo_and_marginalia, tmp_path):
-        from ptk.importers.arkiv import detect
+        from photo_memex.importers.arkiv import detect
 
         out = tmp_path / "bundle"
         _export_bundle(out)
         assert detect(out) is True
 
     def test_detect_zip(self, library_with_photo_and_marginalia, tmp_path):
-        from ptk.importers.arkiv import detect
+        from photo_memex.importers.arkiv import detect
 
         out = tmp_path / "bundle.zip"
         _export_bundle(out)
         assert detect(out) is True
 
     def test_detect_tar_gz(self, library_with_photo_and_marginalia, tmp_path):
-        from ptk.importers.arkiv import detect
+        from photo_memex.importers.arkiv import detect
 
         out = tmp_path / "bundle.tar.gz"
         _export_bundle(out)
         assert detect(out) is True
 
     def test_detect_tgz(self, library_with_photo_and_marginalia, tmp_path):
-        from ptk.importers.arkiv import detect
+        from photo_memex.importers.arkiv import detect
 
         out = tmp_path / "bundle.tgz"
         _export_bundle(out)
         assert detect(out) is True
 
     def test_detect_bare_jsonl(self, library_with_photo_and_marginalia, tmp_path):
-        from ptk.importers.arkiv import detect
+        from photo_memex.importers.arkiv import detect
 
         dir_out = tmp_path / "d"
         _export_bundle(dir_out)
@@ -139,7 +139,7 @@ class TestDetect:
         assert detect(bare) is True
 
     def test_detect_bare_jsonl_gz(self, library_with_photo_and_marginalia, tmp_path):
-        from ptk.importers.arkiv import detect
+        from photo_memex.importers.arkiv import detect
 
         dir_out = tmp_path / "d"
         _export_bundle(dir_out)
@@ -149,12 +149,12 @@ class TestDetect:
         assert detect(bare_gz) is True
 
     def test_detect_rejects_missing_path(self, tmp_path):
-        from ptk.importers.arkiv import detect
+        from photo_memex.importers.arkiv import detect
 
         assert detect(tmp_path / "does-not-exist") is False
 
     def test_detect_rejects_foreign_arkiv(self, tmp_path):
-        from ptk.importers.arkiv import detect
+        from photo_memex.importers.arkiv import detect
 
         foreign = tmp_path / "foreign.jsonl"
         foreign.write_text(
@@ -177,7 +177,7 @@ class TestImportRoundTrip:
     def test_import_directory_reconstructs_photo(
         self, library_with_photo_and_marginalia, db_session, tmp_path
     ):
-        from ptk.importers.arkiv import import_arkiv
+        from photo_memex.importers.arkiv import import_arkiv
 
         out = tmp_path / "bundle"
         _export_bundle(out)
@@ -213,7 +213,7 @@ class TestImportRoundTrip:
     def test_import_zip_bundle(
         self, library_with_photo_and_marginalia, db_session, tmp_path
     ):
-        from ptk.importers.arkiv import import_arkiv
+        from photo_memex.importers.arkiv import import_arkiv
 
         out = tmp_path / "bundle.zip"
         _export_bundle(out)
@@ -231,7 +231,7 @@ class TestImportRoundTrip:
     def test_import_tar_gz_bundle(
         self, library_with_photo_and_marginalia, db_session, tmp_path
     ):
-        from ptk.importers.arkiv import import_arkiv
+        from photo_memex.importers.arkiv import import_arkiv
 
         out = tmp_path / "bundle.tar.gz"
         _export_bundle(out)
@@ -244,7 +244,7 @@ class TestImportRoundTrip:
         self, library_with_photo_and_marginalia, db_session, tmp_path
     ):
         """The SPA round-trip shape: bare .jsonl.gz."""
-        from ptk.importers.arkiv import import_arkiv
+        from photo_memex.importers.arkiv import import_arkiv
 
         dir_out = tmp_path / "d"
         _export_bundle(dir_out)
@@ -258,7 +258,7 @@ class TestImportRoundTrip:
     def test_re_import_is_idempotent(
         self, library_with_photo_and_marginalia, db_session, tmp_path
     ):
-        from ptk.importers.arkiv import import_arkiv
+        from photo_memex.importers.arkiv import import_arkiv
 
         out = tmp_path / "bundle"
         _export_bundle(out)
@@ -281,7 +281,7 @@ class TestImportRoundTrip:
     def test_merge_flag_accepted(
         self, library_with_photo_and_marginalia, tmp_path
     ):
-        from ptk.importers.arkiv import import_arkiv
+        from photo_memex.importers.arkiv import import_arkiv
 
         out = tmp_path / "bundle"
         _export_bundle(out)
@@ -293,7 +293,7 @@ class TestImportRoundTrip:
         self, populated_library, db_session, tmp_path
     ):
         """A marginalia record referencing a missing photo lands as an orphan."""
-        from ptk.importers.arkiv import import_arkiv
+        from photo_memex.importers.arkiv import import_arkiv
 
         bundle = tmp_path / "orphan.jsonl"
         orphan = {
@@ -326,7 +326,7 @@ class TestMergeSemantics:
     def test_reimport_adds_new_tag_to_existing_photo(
         self, library_with_photo_and_marginalia, db_session, tmp_path
     ):
-        from ptk.importers.arkiv import import_arkiv
+        from photo_memex.importers.arkiv import import_arkiv
 
         out = tmp_path / "bundle"
         _export_bundle(out)

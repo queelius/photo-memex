@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from ptk.db.models import Marginalia, Photo, Tag
+from photo_memex.db.models import Marginalia, Photo, Tag
 
 
 @pytest.fixture
@@ -53,14 +53,14 @@ class TestArkivExport:
     """Directory bundle shape."""
 
     def test_creates_output_directory(self, library_with_tagged_photo, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
         assert out.is_dir()
 
     def test_creates_readme(self, library_with_tagged_photo, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -75,7 +75,7 @@ class TestArkivExport:
         assert frontmatter["generator"].startswith("photo-memex")
 
     def test_readme_contains_photo_count(self, library_with_tagged_photo, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         count = export_arkiv(out)
@@ -88,7 +88,7 @@ class TestArkivExport:
 
     def test_readme_contents_list(self, library_with_tagged_photo, tmp_path):
         """README frontmatter lists records.jsonl in contents."""
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -102,7 +102,7 @@ class TestArkivExport:
         assert "records.jsonl" in paths
 
     def test_creates_records_jsonl(self, library_with_tagged_photo, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -111,7 +111,7 @@ class TestArkivExport:
     def test_jsonl_one_record_per_photo(
         self, library_with_tagged_photo, tmp_path, db_session
     ):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         count = export_arkiv(out)
@@ -128,7 +128,7 @@ class TestArkivExport:
     def test_jsonl_record_has_required_fields(
         self, library_with_tagged_photo, tmp_path
     ):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -142,7 +142,7 @@ class TestArkivExport:
     def test_jsonl_metadata_sha256(
         self, library_with_tagged_photo, tmp_path, db_session
     ):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -152,7 +152,7 @@ class TestArkivExport:
         assert len(rec["metadata"]["sha256"]) == 64
 
     def test_jsonl_metadata_tags(self, library_with_tagged_photo, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -161,7 +161,7 @@ class TestArkivExport:
         assert "test-tag" in rec["metadata"]["tags"]
 
     def test_jsonl_metadata_caption(self, library_with_tagged_photo, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -171,7 +171,7 @@ class TestArkivExport:
     def test_jsonl_source_path_starts_with_file(
         self, library_with_tagged_photo, tmp_path
     ):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -181,7 +181,7 @@ class TestArkivExport:
     def test_jsonl_mimetype(
         self, library_with_tagged_photo, tmp_path, db_session
     ):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -190,7 +190,7 @@ class TestArkivExport:
         assert rec["mimetype"] == photo.mime_type
 
     def test_creates_schema_yaml(self, library_with_tagged_photo, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -199,7 +199,7 @@ class TestArkivExport:
     def test_schema_has_scheme_and_kinds(
         self, library_with_tagged_photo, tmp_path
     ):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -212,7 +212,7 @@ class TestArkivExport:
     def test_schema_metadata_keys_types(
         self, library_with_tagged_photo, tmp_path
     ):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -224,7 +224,7 @@ class TestArkivExport:
     def test_schema_counts_are_populated(
         self, library_with_tagged_photo, tmp_path, db_session
     ):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -235,7 +235,7 @@ class TestArkivExport:
         assert schema["counts"]["photo"] == live_photos
 
     def test_null_fields_omitted(self, populated_library, db_session, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -244,7 +244,7 @@ class TestArkivExport:
         assert "tags" not in rec["metadata"]
 
     def test_is_favorite_in_metadata(self, library_with_tagged_photo, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -254,7 +254,7 @@ class TestArkivExport:
     def test_returns_photo_count(
         self, library_with_tagged_photo, tmp_path, db_session
     ):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         count = export_arkiv(out)
@@ -265,7 +265,7 @@ class TestArkivExport:
         assert count > 0
 
     def test_custom_title(self, library_with_tagged_photo, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out, title="My Photo Archive")
@@ -275,7 +275,7 @@ class TestArkivExport:
         assert frontmatter["name"] == "My Photo Archive"
 
     def test_tags_are_sorted(self, populated_library, db_session, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         photo = db_session.query(Photo).first()
         tag_z = Tag(name="zebra")
@@ -292,7 +292,7 @@ class TestArkivExport:
         assert tags == ["alpha", "zebra"]
 
     def test_jsonl_record_has_kind(self, library_with_tagged_photo, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -302,7 +302,7 @@ class TestArkivExport:
     def test_jsonl_record_uri(
         self, library_with_tagged_photo, tmp_path, db_session
     ):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "arkiv-out"
         export_arkiv(out)
@@ -317,7 +317,7 @@ class TestArkivMarginalia:
     def test_marginalia_records_included(
         self, populated_library, db_session, tmp_path
     ):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         photo = db_session.query(Photo).first()
         note = Marginalia(
@@ -341,7 +341,7 @@ class TestArkivMarginalia:
     def test_archived_marginalia_excluded(
         self, populated_library, db_session, tmp_path
     ):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         photo = db_session.query(Photo).first()
         note = Marginalia(
@@ -363,7 +363,7 @@ class TestArkivMarginalia:
         self, populated_library, db_session, tmp_path
     ):
         """A marginalia with photo_id=None emits photo_uri=null."""
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         note = Marginalia(
             photo_id=None,
@@ -384,7 +384,7 @@ class TestArkivBundles:
     """Bundle-format support (directory / .zip / .tar.gz)."""
 
     def test_detect_compression(self):
-        from ptk.exports.arkiv import _detect_compression
+        from photo_memex.exports.arkiv import _detect_compression
 
         assert _detect_compression("out") == "dir"
         assert _detect_compression("out.zip") == "zip"
@@ -394,7 +394,7 @@ class TestArkivBundles:
         assert _detect_compression("out.tgz") == "tar.gz"
 
     def test_zip_bundle(self, library_with_tagged_photo, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "bundle.zip"
         count = export_arkiv(out)
@@ -407,7 +407,7 @@ class TestArkivBundles:
         assert len(photo_records) == count
 
     def test_tar_gz_bundle(self, library_with_tagged_photo, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "bundle.tar.gz"
         export_arkiv(out)
@@ -418,7 +418,7 @@ class TestArkivBundles:
         assert any(r["kind"] == "photo" for r in records)
 
     def test_tgz_extension(self, library_with_tagged_photo, tmp_path):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         out = tmp_path / "bundle.tgz"
         export_arkiv(out)
@@ -428,7 +428,7 @@ class TestArkivBundles:
     def test_bundle_records_identical_across_formats(
         self, library_with_tagged_photo, tmp_path
     ):
-        from ptk.exports.arkiv import export_arkiv
+        from photo_memex.exports.arkiv import export_arkiv
 
         dir_out = tmp_path / "dir"
         zip_out = tmp_path / "bundle.zip"

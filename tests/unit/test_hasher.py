@@ -1,9 +1,9 @@
-"""Tests for ptk.core.hasher."""
+"""Tests for photo_memex.core.hasher."""
 
 import pytest
 from pathlib import Path
 
-from ptk.core.hasher import hash_file, hash_bytes
+from photo_memex.core.hasher import hash_file, hash_bytes
 
 
 def test_hash_bytes():

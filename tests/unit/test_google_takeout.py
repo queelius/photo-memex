@@ -1,4 +1,4 @@
-"""Tests for ptk.importers.google_takeout."""
+"""Tests for photo_memex.importers.google_takeout."""
 
 import json
 import pytest
@@ -6,7 +6,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ptk.importers.google_takeout import GoogleTakeoutImporter
+from photo_memex.importers.google_takeout import GoogleTakeoutImporter
 
 
 @pytest.fixture

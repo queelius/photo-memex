@@ -1,6 +1,6 @@
 """Import an arkiv bundle back into photo-memex.
 
-Bundles emitted by :mod:`ptk.exports.arkiv` (or any other tool
+Bundles emitted by :mod:`photo_memex.exports.arkiv` (or any other tool
 following the arkiv spec, within reason) are read, classified by
 record kind, and inserted into the DB.
 
@@ -251,7 +251,7 @@ def _sha256_from_photo_uri(uri: Optional[str]) -> Optional[str]:
 def import_arkiv(path: str | Path, *, merge: bool = False) -> Dict[str, int]:
     """Import an arkiv bundle into the current photo-memex library.
 
-    Uses :func:`ptk.db.session.session_scope` so the caller must have
+    Uses :func:`photo_memex.db.session.session_scope` so the caller must have
     already run ``ptk init`` (or ``find_library()``) to locate the DB.
 
     Parameters
@@ -274,8 +274,8 @@ def import_arkiv(path: str | Path, *, merge: bool = False) -> Dict[str, int]:
         resolve to a local photo; the note is still created with
         ``photo_id=None`` (orphan-survival contract).
     """
-    from ptk.db.models import Marginalia, Photo
-    from ptk.db.session import session_scope
+    from photo_memex.db.models import Marginalia, Photo
+    from photo_memex.db.session import session_scope
 
     stats = {
         "photos_seen": 0,
@@ -411,7 +411,7 @@ def _merge_photo_tags_and_albums(session, photo, meta: Dict[str, Any]) -> None:
 
     Additive-only; existing local enrichments survive.
     """
-    from ptk.db.models import Album, Tag
+    from photo_memex.db.models import Album, Tag
 
     now = datetime.now(UTC)
 

@@ -1,9 +1,9 @@
-"""Tests for ptk.db.models."""
+"""Tests for photo_memex.db.models."""
 
 import pytest
 from datetime import datetime, timezone
 
-from ptk.db.models import Photo, Face, Person, Album, Tag, Event
+from photo_memex.db.models import Photo, Face, Person, Album, Tag, Event
 
 
 def test_photo_creation(db_session):

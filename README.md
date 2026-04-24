@@ -110,9 +110,9 @@ Original files are never modified. All metadata lives in SQLite (`photo-memex.db
 ```bash
 pip install -e ".[dev,mcp]"
 pytest                          # ~280 tests
-pytest --cov=ptk                # with coverage
-ruff check ptk tests            # lint
-ruff format ptk tests           # format
+pytest --cov=photo_memex                # with coverage
+ruff check photo_memex tests            # lint
+ruff format photo_memex tests           # format
 ```
 
 ## License

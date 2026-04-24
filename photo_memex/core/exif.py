@@ -9,7 +9,7 @@ import re
 import exifread
 from dateutil import parser as date_parser
 
-from ptk.core.exceptions import ExifExtractionError
+from photo_memex.core.exceptions import ExifExtractionError
 
 
 @dataclass

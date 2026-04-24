@@ -1,7 +1,7 @@
 """Database layer for ptk."""
 
-from ptk.db.models import Album, Base, Event, Face, Marginalia, Person, Photo, SoftDeleteMixin, Tag
-from ptk.db.session import get_engine, get_session, init_db
+from photo_memex.db.models import Album, Base, Event, Face, Marginalia, Person, Photo, SoftDeleteMixin, Tag
+from photo_memex.db.session import get_engine, get_session, init_db
 
 __all__ = [
     "init_db",

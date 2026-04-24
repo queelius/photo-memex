@@ -1,4 +1,4 @@
-"""Tests for ptk.exports.html module (C6 workspace contract).
+"""Tests for photo_memex.exports.html module (C6 workspace contract).
 
 Shape: single self-contained .html file with
 
@@ -21,7 +21,7 @@ import pytest
 @pytest.fixture
 def html_export(populated_library, temp_dir):
     """Export HTML and return the path."""
-    from ptk.exports.html import export_html
+    from photo_memex.exports.html import export_html
 
     output = temp_dir / "gallery.html"
     export_html(output)
@@ -80,14 +80,14 @@ class TestExportHtml:
         assert "photo-memex Photo Library" in content
 
     def test_custom_title(self, populated_library, temp_dir):
-        from ptk.exports.html import export_html
+        from photo_memex.exports.html import export_html
 
         output = temp_dir / "custom_title.html"
         export_html(output, title="My Custom Gallery")
         assert "My Custom Gallery" in output.read_text(encoding="utf-8")
 
     def test_custom_output_path(self, populated_library, temp_dir):
-        from ptk.exports.html import export_html
+        from photo_memex.exports.html import export_html
 
         subdir = temp_dir / "subdir" / "nested"
         output = subdir / "export.html"
@@ -139,7 +139,7 @@ class TestExportHtml:
             tmp_path.unlink(missing_ok=True)
 
     def test_returns_photo_count(self, populated_library, temp_dir):
-        from ptk.exports.html import export_html
+        from photo_memex.exports.html import export_html
 
         output = temp_dir / "count_test.html"
         count = export_html(output)

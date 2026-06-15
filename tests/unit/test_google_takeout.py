@@ -139,6 +139,55 @@ def test_scan_zip(google_takeout_zip: Path):
     assert len(items) == 2
 
 
+def test_scan_zip_paths_survive_materialization(google_takeout_zip: Path):
+    """Regression (B12): callers materialize scan() into a list (to count
+    files) before reading each item's path. The extracted files must still
+    exist at that point — previously the temp dir was a `with
+    TemporaryDirectory()` that deleted itself the instant the generator was
+    exhausted, so every path was already gone (FileNotFoundError on hash)."""
+    importer = GoogleTakeoutImporter()
+    items = list(importer.scan(google_takeout_zip))
+    try:
+        assert items, "no items scanned"
+        for item in items:
+            assert item.path.exists(), f"extracted file vanished: {item.path}"
+    finally:
+        importer.cleanup()
+
+
+def test_cleanup_removes_extraction_dir(google_takeout_zip: Path):
+    """cleanup() deletes the temp extraction directory; before it, files
+    persist."""
+    importer = GoogleTakeoutImporter()
+    items = list(importer.scan(google_takeout_zip))
+    extract_dir = importer._temp_extract_dir
+    assert extract_dir is not None and extract_dir.exists()
+    assert all(item.path.exists() for item in items)
+
+    importer.cleanup()
+    assert not extract_dir.exists()
+    assert importer._temp_extract_dir is None
+    importer.cleanup()  # idempotent, no raise
+
+
+def test_import_from_zip_end_to_end(google_takeout_zip: Path, test_library):
+    """The advertised `import takeout.zip --source google` path must
+    actually import photos, not abort on FileNotFoundError."""
+    from photo_memex.services.import_service import ImportService
+    from photo_memex.core.config import get_config
+    from photo_memex.db.session import get_session
+
+    importer = GoogleTakeoutImporter()
+    service = ImportService(get_session(), get_config())
+    result = service.import_from(importer, google_takeout_zip)
+
+    assert result.total_files == 2
+    assert result.imported == 2, f"errors={result.error_paths}"
+    assert result.errors == 0
+    # Temp dir cleaned up by import_from's finally.
+    assert importer._temp_extract_dir is None
+
+
 def test_skip_json_files(google_takeout_dir: Path):
     """Test that JSON sidecar files are not imported as photos."""
     importer = GoogleTakeoutImporter()

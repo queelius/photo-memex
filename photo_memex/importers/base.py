@@ -84,3 +84,15 @@ class BaseImporter(ABC):
             Dictionary of metadata or None
         """
         return item.source_metadata
+
+    def cleanup(self) -> None:
+        """Release any resources held for the duration of an import.
+
+        Default is a no-op. Importers that extract to a temporary location
+        (e.g. unzipping a Takeout archive) override this to delete it. The
+        caller (ImportService) invokes it once item processing is complete,
+        so yielded ``ImportItem`` paths stay valid until then — a generator
+        that auto-deletes its temp dir on exhaustion breaks any consumer
+        that materializes the items before reading them.
+        """
+        pass

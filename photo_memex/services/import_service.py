@@ -53,30 +53,36 @@ class ImportService:
         """
         result = ImportResult()
 
-        # Collect items first to get total count
-        items = list(importer.scan(path))
-        result.total_files = len(items)
+        try:
+            # Collect items first to get total count. For archive importers
+            # this materializes paths into a temp dir that importer.cleanup()
+            # tears down in the finally below — never at generator exhaustion,
+            # or these paths would be gone before the loop hashes them.
+            items = list(importer.scan(path))
+            result.total_files = len(items)
 
-        for i, item in enumerate(items):
-            if progress_callback:
-                progress_callback(i + 1, result.total_files, str(item.path))
+            for i, item in enumerate(items):
+                if progress_callback:
+                    progress_callback(i + 1, result.total_files, str(item.path))
 
-            try:
-                photo_id = self._import_item(item, importer.name, dry_run)
-                if photo_id:
-                    result.imported += 1
-                    result.imported_ids.append(photo_id)
-                else:
+                try:
+                    photo_id = self._import_item(item, importer.name, dry_run)
+                    if photo_id:
+                        result.imported += 1
+                        result.imported_ids.append(photo_id)
+                    else:
+                        result.duplicates += 1
+                except DuplicateError as e:
                     result.duplicates += 1
-            except DuplicateError as e:
-                result.duplicates += 1
-                result.duplicate_ids.append(e.hash_id)
-            except ImportError as e:
-                result.errors += 1
-                result.error_paths.append((str(item.path), str(e)))
+                    result.duplicate_ids.append(e.hash_id)
+                except ImportError as e:
+                    result.errors += 1
+                    result.error_paths.append((str(item.path), str(e)))
 
-        if not dry_run:
-            self.session.commit()
+            if not dry_run:
+                self.session.commit()
+        finally:
+            importer.cleanup()
 
         return result
 

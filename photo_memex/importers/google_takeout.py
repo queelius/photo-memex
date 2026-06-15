@@ -129,19 +129,30 @@ class GoogleTakeoutImporter(BaseImporter):
     def _scan_zip(self, zip_path: Path) -> Iterator[ImportItem]:
         """Scan a Takeout ZIP file.
 
-        Extracts files to a temporary directory for processing.
+        Extracts files to a temporary directory whose lifetime is tied to
+        this importer (NOT to this generator). Callers routinely
+        materialize ``scan()`` into a list before reading each item's
+        ``path`` (to count total files first), so the extracted files must
+        outlive generator exhaustion. ``cleanup()`` removes the directory
+        once the caller has finished importing.
         """
         import tempfile
 
-        with tempfile.TemporaryDirectory(prefix="ptk_takeout_") as temp_dir:
-            temp_path = Path(temp_dir)
+        temp_path = Path(tempfile.mkdtemp(prefix="ptk_takeout_"))
+        self._temp_extract_dir = temp_path
 
-            # Extract ZIP
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(temp_path)
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(temp_path)
 
-            # Scan extracted directory
-            yield from self._scan_directory(temp_path)
+        yield from self._scan_directory(temp_path)
+
+    def cleanup(self) -> None:
+        """Delete the Takeout extraction directory, if one was created."""
+        if self._temp_extract_dir is not None:
+            import shutil
+
+            shutil.rmtree(self._temp_extract_dir, ignore_errors=True)
+            self._temp_extract_dir = None
 
     def _is_valid_media_file(self, path: Path) -> bool:
         """Check if a file should be imported."""

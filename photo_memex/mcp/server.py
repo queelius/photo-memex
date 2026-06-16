@@ -51,9 +51,17 @@ class PtkServer:
         """
         if not photo_id or len(photo_id) < 4:
             raise ValueError("Photo ID or prefix must be at least 4 characters")
+        # autoescape=True treats %/_ in the prefix as literals rather than
+        # LIKE wildcards. Without it, a prefix like "a_c%" would match photos
+        # whose real IDs differ from the literal prefix, so a caller could
+        # resolve (and then mutate) an unintended photo. SHA256 IDs never
+        # contain %/_, so escaping only ever narrows matches to literal ones.
         matches = (
             session.query(Photo)
-            .filter(Photo.id.startswith(photo_id), Photo.archived_at.is_(None))
+            .filter(
+                Photo.id.startswith(photo_id, autoescape=True),
+                Photo.archived_at.is_(None),
+            )
             .limit(2)
             .all()
         )

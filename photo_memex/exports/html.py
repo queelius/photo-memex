@@ -59,7 +59,22 @@ def export_html(output_path: Path, title: str = "photo-memex Photo Library") -> 
         src_conn.backup(dst_conn)
         src_conn.close()
 
-        photo_count = dst_conn.execute("SELECT count(*) FROM photos").fetchone()[0]
+        # Enable cascade deletes so removing an archived photo also removes
+        # its tag/album/event junctions and faces (all ON DELETE CASCADE).
+        # PRAGMA foreign_keys is a no-op inside a transaction, so issue it
+        # before any DML (sqlite3 does not open a transaction for PRAGMA).
+        dst_conn.execute("PRAGMA foreign_keys=ON")
+
+        # Soft-deleted photos must NOT ship in a published bundle: the
+        # gallery filters archived_at IS NULL in its queries, but the rows
+        # (caption, location_name, GPS) are trivially extractable from the
+        # embedded sqlite file. Hard-delete them from the export copy.
+        with contextlib.suppress(sqlite3.OperationalError):
+            dst_conn.execute("DELETE FROM photos WHERE archived_at IS NOT NULL")
+
+        photo_count = dst_conn.execute(
+            "SELECT count(*) FROM photos WHERE archived_at IS NULL"
+        ).fetchone()[0]
 
         # Strip heavy tables/columns (may not exist in newer databases).
         for stmt in [
@@ -68,6 +83,20 @@ def export_html(output_path: Path, title: str = "photo-memex Photo Library") -> 
         ]:
             with contextlib.suppress(sqlite3.OperationalError):
                 dst_conn.execute(stmt)
+
+        # Strip the FTS5 search table (C6b): sql.js cannot query FTS5, and
+        # its shadow tables (_data/_idx/_docsize/_config) are ~half the DB.
+        # Drop the sync triggers first so they cannot reference the table
+        # after it is gone (the archived-photo DELETE above already fired
+        # photos_fts_delete while the table still existed).
+        for trig in (
+            "photos_fts_insert", "photos_fts_update",
+            "photos_fts_archive", "photos_fts_delete",
+        ):
+            with contextlib.suppress(sqlite3.OperationalError):
+                dst_conn.execute(f"DROP TRIGGER IF EXISTS {trig}")
+        with contextlib.suppress(sqlite3.OperationalError):
+            dst_conn.execute("DROP TABLE IF EXISTS photos_fts")
 
         dst_conn.commit()
         dst_conn.close()

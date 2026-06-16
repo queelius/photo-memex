@@ -624,6 +624,56 @@ class TestArchivedPhotoGuard:
             server.set_caption(photo_id, "x")
 
 
+# ── prefix-resolution LIKE-wildcard safety ───────────────────────────────────
+
+
+class TestResolvePrefixWildcards:
+    """A SHA prefix must be matched literally, never as a LIKE pattern.
+
+    Photo.id.startswith() compiles to ``id LIKE :prefix || '%'``; without
+    autoescape, ``%`` and ``_`` in the prefix act as wildcards, so a caller
+    could resolve a photo whose real ID differs from the literal prefix and
+    then mutate it. SHA256 IDs are pure hex, so escaping only ever restricts
+    matches to the intended one.
+    """
+
+    @pytest.fixture
+    def known_photo(self):
+        """Insert a photo with a controlled, hex-shaped ID."""
+        marker_id = "abcd" + "1" * 60
+        with session_scope() as s:
+            s.add(
+                Photo(
+                    id=marker_id,
+                    original_path="/tmp/known.jpg",
+                    filename="known.jpg",
+                    file_size=10,
+                    mime_type="image/jpeg",
+                    date_imported=datetime.now(UTC),
+                )
+            )
+        return marker_id
+
+    def test_underscore_is_literal_not_wildcard(self, server, known_photo):
+        # "a_cd" would LIKE-match "abcd..." if '_' were a wildcard; escaped,
+        # it is a literal prefix that matches no real (hex) ID.
+        with session_scope() as s:
+            with pytest.raises(ValueError, match="No photo found"):
+                PtkServer._resolve_photo(s, "a_cd")
+
+    def test_percent_is_literal_not_wildcard(self, server, known_photo):
+        # "%" as a wildcard would match every photo (ambiguous); escaped, it
+        # is a literal that matches nothing.
+        with session_scope() as s:
+            with pytest.raises(ValueError, match="No photo found"):
+                PtkServer._resolve_photo(s, "%%%%")
+
+    def test_literal_prefix_still_resolves(self, server, known_photo):
+        with session_scope() as s:
+            photo = PtkServer._resolve_photo(s, "abcd")
+            assert photo.id == known_photo
+
+
 # ── create_event / add_to_event ─────────────────────────────────────────────
 
 

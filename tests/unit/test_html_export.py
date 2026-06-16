@@ -163,3 +163,109 @@ class TestExportHtml:
         content = html_export.read_text(encoding="utf-8")
         assert "DecompressionStream" in content
         assert "gzip" in content
+
+
+def _exported_db_conn(content: str):
+    """Materialise the embedded DB to a temp file and open a connection."""
+    db_bytes = _db_bytes(content)
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+        tmp.write(db_bytes)
+        tmp_path = Path(tmp.name)
+    conn = sqlite3.connect(str(tmp_path))
+    return conn, tmp_path
+
+
+class TestExportHtmlPrivacy:
+    """A published bundle must not leak soft-deleted photos or FTS internals.
+
+    The gallery template filters ``archived_at IS NULL`` in its queries, but
+    the embedded SQLite file is fully readable by anyone who downloads the
+    HTML, so archived rows have to be physically removed from the export copy
+    (workspace 'treat exported HTML as public' contract). FTS5 shadow tables
+    must also be dropped: sql.js cannot query them and they bloat the bundle
+    (C6b).
+    """
+
+    @pytest.fixture
+    def archived_photo_id(self, populated_library):
+        """Insert a soft-deleted photo carrying a recognisable PII marker."""
+        from datetime import datetime, timezone
+
+        from photo_memex.db.models import Photo
+        from photo_memex.db.session import get_session
+
+        marker_id = "dead" + "0" * 60  # 64-char hex-shaped SHA256
+        session = get_session()
+        try:
+            session.add(
+                Photo(
+                    id=marker_id,
+                    original_path="/secret/diary.jpg",
+                    filename="diary.jpg",
+                    file_size=123,
+                    mime_type="image/jpeg",
+                    date_imported=datetime.now(timezone.utc),
+                    caption="SECRET_CAPTION_DO_NOT_PUBLISH",
+                    location_name="SECRET_LOCATION_DO_NOT_PUBLISH",
+                    archived_at=datetime.now(timezone.utc),
+                )
+            )
+            session.commit()
+        finally:
+            session.close()
+        return marker_id
+
+    def test_archived_photo_absent_from_export(self, archived_photo_id, temp_dir):
+        from photo_memex.exports.html import export_html
+
+        output = temp_dir / "privacy.html"
+        export_html(output)
+        content = output.read_text(encoding="utf-8")
+
+        conn, tmp_path = _exported_db_conn(content)
+        try:
+            row = conn.execute(
+                "SELECT count(*) FROM photos WHERE id = ?", (archived_photo_id,)
+            ).fetchone()
+            assert row[0] == 0, "soft-deleted photo leaked into published bundle"
+            # And its PII strings must not survive anywhere in the DB image.
+            assert b"SECRET_CAPTION_DO_NOT_PUBLISH" not in tmp_path.read_bytes()
+            assert b"SECRET_LOCATION_DO_NOT_PUBLISH" not in tmp_path.read_bytes()
+        finally:
+            conn.close()
+            tmp_path.unlink(missing_ok=True)
+
+    def test_live_photo_survives_export(self, archived_photo_id, temp_dir):
+        """The archived-row purge must not take live photos with it."""
+        from photo_memex.exports.html import export_html
+
+        output = temp_dir / "privacy_live.html"
+        count = export_html(output)
+        assert count >= 1
+        content = output.read_text(encoding="utf-8")
+        conn, tmp_path = _exported_db_conn(content)
+        try:
+            live = conn.execute(
+                "SELECT count(*) FROM photos WHERE archived_at IS NULL"
+            ).fetchone()[0]
+            assert live >= 1
+        finally:
+            conn.close()
+            tmp_path.unlink(missing_ok=True)
+
+    def test_fts_tables_stripped(self, html_export):
+        """photos_fts and its shadow tables must not ship (C6b)."""
+        content = html_export.read_text(encoding="utf-8")
+        conn, tmp_path = _exported_db_conn(content)
+        try:
+            names = {
+                r[0]
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master"
+                ).fetchall()
+            }
+            leaked = {n for n in names if n.startswith("photos_fts")}
+            assert not leaked, f"FTS5 artifacts leaked into export: {sorted(leaked)}"
+        finally:
+            conn.close()
+            tmp_path.unlink(missing_ok=True)

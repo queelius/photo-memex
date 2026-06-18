@@ -351,3 +351,68 @@ class TestMergeSemantics:
         tag_names = {t.name for t in photo.tags}
         assert "holiday" in tag_names, "original tag preserved"
         assert "portfolio" in tag_names, "bundle-only tag merged in"
+
+
+class TestSourcePathRoundTrip:
+    """F6: arkiv source_path must round-trip paths with spaces/unicode and
+    not crash on synthetic (non-absolute) original_path values."""
+
+    def test_source_path_uri_encodes_absolute_passes_relative(self):
+        from photo_memex.exports.arkiv import _source_path_uri
+
+        assert _source_path_uri("/home/u/My Photos/a.jpg") == (
+            "file:///home/u/My%20Photos/a.jpg"
+        )
+        # A synthetic/relative path must not raise (Path.as_uri() would).
+        synthetic = "imported:" + "a" * 64
+        assert _source_path_uri(synthetic) == synthetic
+
+    def test_import_decodes_percent_encoded_path(self, test_library, tmp_path):
+        from photo_memex.db.models import Photo
+        from photo_memex.db.session import get_session
+        from photo_memex.importers.arkiv import import_arkiv
+
+        sha = "b" * 64
+        bundle = tmp_path / "bundle"
+        bundle.mkdir()
+        rec = {
+            "kind": "photo",
+            "uri": f"photo-memex://photo/{sha}",
+            "source_path": "file:///home/u/My%20Photos/a.jpg",
+            "mimetype": "image/jpeg",
+            "metadata": {"sha256": sha},
+        }
+        (bundle / "records.jsonl").write_text(json.dumps(rec) + "\n")
+
+        import_arkiv(bundle)
+        photo = get_session().query(Photo).filter_by(id=sha).first()
+        assert photo is not None
+        # Decoded, not the corrupted "%20" form.
+        assert photo.original_path == "/home/u/My Photos/a.jpg"
+
+    def test_synthetic_path_round_trips_and_reexports(self, test_library, tmp_path):
+        from photo_memex.db.models import Photo
+        from photo_memex.db.session import get_session
+        from photo_memex.exports.arkiv import export_arkiv
+        from photo_memex.importers.arkiv import import_arkiv
+
+        sha = "c" * 64
+        bundle = tmp_path / "b1"
+        bundle.mkdir()
+        rec = {
+            "kind": "photo",
+            "uri": f"photo-memex://photo/{sha}",
+            "mimetype": "image/jpeg",
+            "metadata": {"sha256": sha},
+        }
+        (bundle / "records.jsonl").write_text(json.dumps(rec) + "\n")
+
+        import_arkiv(bundle)
+        photo = get_session().query(Photo).filter_by(id=sha).first()
+        assert photo is not None
+        assert photo.original_path == f"imported:{sha}"
+
+        # Re-export must not raise on the synthetic (relative) path.
+        out = tmp_path / "b2"
+        export_arkiv(out)
+        assert (out / "records.jsonl").exists()

@@ -75,7 +75,14 @@ class ImportService:
                 except DuplicateError as e:
                     result.duplicates += 1
                     result.duplicate_ids.append(e.hash_id)
-                except ImportError as e:
+                except (ImportError, OSError, ValueError) as e:
+                    # An unreadable/corrupt file (OSError, including Pillow's
+                    # UnidentifiedImageError, or a ValueError from a malformed
+                    # source-metadata date) must not abort a 10,000-photo
+                    # import. _import_item only mutates the session on its
+                    # final line (session.add), so a raise leaves no partial
+                    # row; record the failure and continue. The end-of-loop
+                    # commit still persists every successfully imported photo.
                     result.errors += 1
                     result.error_paths.append((str(item.path), str(e)))
 

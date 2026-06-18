@@ -56,6 +56,8 @@ from collections.abc import Iterable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
+from urllib.request import url2pathname
 
 
 # ---------------------------------------------------------------------------
@@ -315,9 +317,15 @@ def import_arkiv(path: str | Path, *, merge: bool = False) -> Dict[str, int]:
             # placeholder so the NOT NULL constraint is satisfied —
             # callers reconcile with the real file later.
             source_path = rec.get("source_path") or ""
-            if source_path.startswith("file:///"):
-                path_only = source_path[len("file://"):]
+            if source_path.startswith("file://"):
+                # Reverse export's Path.as_uri(): un-percent-encode so spaces
+                # and unicode in the path survive (e.g. file:///home/u/My%20
+                # Photos/a.jpg -> /home/u/My Photos/a.jpg). The old bare slice
+                # left literal %20 sequences, breaking verify/rescan/thumbnail.
+                path_only = url2pathname(urlparse(source_path).path)
             else:
+                # Non-file value (e.g. the synthetic "imported:<sha>"
+                # placeholder) round-trips verbatim.
                 path_only = source_path or f"imported:{sha}"
 
             photo = Photo(

@@ -89,6 +89,22 @@ def _detect_compression(path: str | Path) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _source_path_uri(original_path: str) -> str:
+    """Render a photo's original_path as the arkiv ``source_path``.
+
+    An absolute filesystem path becomes a percent-encoded ``file://`` URI
+    (the importer reverses this with url2pathname). A non-absolute value
+    (e.g. the synthetic ``imported:<sha>`` placeholder a metadata-only
+    import stores) is passed through verbatim: ``Path.as_uri()`` raises
+    ValueError on relative paths, which would otherwise abort the export of
+    an entire library containing any such row.
+    """
+    p = Path(original_path)
+    if p.is_absolute():
+        return p.as_uri()
+    return original_path
+
+
 def _photo_to_record(photo: Photo) -> dict[str, Any]:
     """Convert a Photo model instance to an arkiv record dict."""
     metadata: dict[str, Any] = {"sha256": photo.id}
@@ -109,7 +125,7 @@ def _photo_to_record(photo: Photo) -> dict[str, Any]:
     record: dict[str, Any] = {
         "kind": "photo",
         "uri": f"photo-memex://photo/{photo.id}",
-        "source_path": Path(photo.original_path).as_uri(),
+        "source_path": _source_path_uri(photo.original_path),
         "mimetype": photo.mime_type,
         "metadata": metadata,
     }

@@ -21,6 +21,7 @@ import contextlib
 import gzip
 import sqlite3
 import tempfile
+from html import escape as _html_escape
 from pathlib import Path
 
 from photo_memex.core.config import get_config
@@ -125,10 +126,15 @@ def export_html(output_path: Path, title: str = "photo-memex Photo Library") -> 
     # one str.replace().
     sqljs_safe = sqljs_js.replace("</script>", "<\\/script>")
 
+    # Escape the caller-supplied title: it lands in <title> and <h1>, so an
+    # unescaped value (e.g. from --title) could inject markup into the
+    # published gallery. Treat any exported HTML as potentially public.
+    safe_title = _html_escape(title)
+
     template = _TEMPLATE_PATH.read_text(encoding="utf-8")
     html = (
         template
-        .replace("{{TITLE}}", title)
+        .replace("{{TITLE}}", safe_title)
         .replace("{{SQLJS_INLINE}}", sqljs_safe)
         .replace("{{WASM_BASE64}}", wasm_b64)
         .replace("{{DB_BASE64_GZ}}", db_b64)

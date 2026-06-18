@@ -44,7 +44,7 @@ ruff format photo_memex tests
 - `query/executor.py`: Two-step execution: raw SQL for ordered IDs, then ORM `.in_()` fetch + reorder. This preserves SQL ordering while loading full ORM objects with relationships.
 - `mcp/server.py`: `PtkServer` class with dual connections: raw sqlite3 for read-only SQL, SQLAlchemy `session_scope()` for writes. `run_mcp_server()` wraps it in FastMCP with stdio transport. All photo-specific tools accept SHA256 prefix lookup via `_resolve_photo()` (min 4 chars, must be unambiguous, excludes archived). All default queries filter `archived_at IS NULL`.
 - `exports/arkiv.py`: Exports to arkiv format (JSONL + README.md + schema.yaml). Each record has `kind: "photo"`, `id: "photo-memex://photo/<sha256>"`, `source_path` (file URI). Denormalizes tags/albums. Excludes archived photos.
-- `exports/html.py`: Single-file HTML export. Uses SQLite `backup()` API (WAL-safe), strips heavy BLOBs, base64-encodes DB, embeds in sql.js-powered gallery template.
+- `exports/html.py`: Single-file HTML export. Uses SQLite `backup()` API (WAL-safe), deletes archived photos and drops legacy heavy columns (`photo_embeddings`, face `embedding`/`thumbnail_data`) plus the `photos_fts` shadow tables, base64-encodes DB, embeds in sql.js-powered gallery template. The caller-supplied title is HTML-escaped.
 
 ### MCP tool inventory
 
@@ -56,7 +56,7 @@ Three `ToolAnnotations` presets control LLM tool-selection behavior:
 Read tools (8, raw sqlite3):
 - `get_schema`, `get_stats`, `run_sql`, `get_thumbnail`, `get_photo`, `list_tags`, `list_albums`, `list_people`
 
-Write tools (11, SQLAlchemy `session_scope()`, return `{"status": "ok", ...current_state}`):
+Write tools (10, SQLAlchemy `session_scope()`, return `{"status": "ok", ...current_state}`):
 - `set_caption`, `add_tags`, `set_favorite`, `add_to_album`, `set_scene`, `tag_person`, `create_event`, `add_to_event`, `batch_add_tags`, `batch_set_caption`
 
 Destructive tools (3, also uses `session_scope()`):
@@ -77,7 +77,7 @@ Destructive tools (3, also uses `session_scope()`):
 - HTML export uses `sqlite3.Connection.backup()` instead of `shutil.copy2` because WAL mode means the DB file alone is incomplete.
 - HTML export VACUUMs with a separate `isolation_level=None` connection since VACUUM can't run inside an implicit transaction.
 - Person tagging creates Face records with `bbox=(0,0,1,1)` and `confidence=0.0` as manual-identification placeholders. No face detection, just identity tracking.
-- `run_sql` enforces read-only: strips leading SQL comments, rejects anything that doesn't start with `SELECT`, executes the cleaned query. Multi-statement protection is provided by sqlite3's single-statement enforcement.
+- `run_sql` enforces read-only: strips leading SQL comments, then allows only statements beginning with `SELECT`, `WITH`, `EXPLAIN`, or `VALUES` (the connection also runs with `PRAGMA query_only=ON`). Results are capped at 1000 rows and BLOB columns (e.g. `thumbnail_data`) are summarized as `<blob N bytes>` so a wide query can't blow the LLM context. Multi-statement protection is provided by sqlite3's single-statement enforcement. The MCP tool's SQL parameter is named `query` (not the ecosystem-typical `sql`).
 - `_batch_apply` collects per-photo errors and returns status `"ok"`, `"partial"`, or `"error"`. Callers don't need try/except.
 - Library discovery (`find_library()`) walks from cwd upward looking for `photo-memex.db`. The MCP server can also accept a library path via `PTK_LIBRARY` env var or `--library` flag.
 - `set_caption` and `set_scene` accept an optional `model` param for AI provenance tracking (`ai_model`, `ai_analyzed_at` columns on Photo).

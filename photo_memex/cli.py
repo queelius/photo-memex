@@ -268,6 +268,8 @@ def show(
 
         # Basic info
         console.print(f"\n[bold]{photo.filename}[/bold]")
+        if photo.archived_at is not None:
+            console.print("[yellow][archived (soft-deleted)][/yellow]")
         console.print(f"ID: {photo.id}")
         console.print(f"Path: {photo.original_path}")
         if photo.date_taken:
@@ -383,20 +385,33 @@ def set_metadata(
 
 
 @app.command()
-def stats() -> None:
+def stats(
+    all_photos: bool = typer.Option(
+        False, "--all", help="Include archived (soft-deleted) photos"
+    ),
+) -> None:
     """Show library statistics."""
     _require_library()
 
     with session_scope() as session:
-        total = session.query(Photo).count()
-        videos = session.query(Photo).filter(Photo.is_video.is_(True)).count()
-        favorites = session.query(Photo).filter(Photo.is_favorite.is_(True)).count()
-        with_location = session.query(Photo).filter(Photo.latitude.isnot(None)).count()
-        with_date = session.query(Photo).filter(Photo.date_taken.isnot(None)).count()
-
         from sqlalchemy import func
 
-        total_size = session.query(func.sum(Photo.file_size)).scalar() or 0
+        def base():
+            # Default reads exclude soft-deleted photos, matching the MCP
+            # get_stats tool; --all includes them for housekeeping.
+            q = session.query(Photo)
+            return q if all_photos else q.filter(Photo.archived_at.is_(None))
+
+        total = base().count()
+        videos = base().filter(Photo.is_video.is_(True)).count()
+        favorites = base().filter(Photo.is_favorite.is_(True)).count()
+        with_location = base().filter(Photo.latitude.isnot(None)).count()
+        with_date = base().filter(Photo.date_taken.isnot(None)).count()
+
+        size_q = session.query(func.sum(Photo.file_size))
+        if not all_photos:
+            size_q = size_q.filter(Photo.archived_at.is_(None))
+        total_size = size_q.scalar() or 0
 
         table = Table(title="Library Statistics")
         table.add_column("Metric")

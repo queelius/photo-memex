@@ -15,6 +15,10 @@ from sqlalchemy.orm import Session
 from photo_memex.db.models import Album, Event, Face, Person, Photo, Tag
 from photo_memex.db.session import session_scope
 
+# Cap rows returned by the read-only run_sql tool so a wide/large SELECT
+# cannot blow the LLM context. Callers paginate with LIMIT/OFFSET.
+_MAX_SQL_ROWS = 1000
+
 
 def _active_names(items) -> list[str]:
     """Return names of items whose archived_at is None."""
@@ -172,7 +176,21 @@ class PtkServer:
 
         cursor = self._conn.execute(cleaned)
         columns = [desc[0] for desc in cursor.description]
-        return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
+        # Cap rows and summarize BLOBs: `SELECT *` over photos would otherwise
+        # pull every thumbnail_data blob, which json.dumps(default=str) renders
+        # as multi-KB b'\xff...' strings and blows the LLM context. Callers
+        # paginate with LIMIT/OFFSET if they hit the cap.
+        rows = cursor.fetchmany(_MAX_SQL_ROWS)
+
+        def _clean(value: Any) -> Any:
+            if isinstance(value, (bytes, bytearray)):
+                return f"<blob {len(value)} bytes>"
+            return value
+
+        return [
+            {col: _clean(val) for col, val in zip(columns, row, strict=True)}
+            for row in rows
+        ]
 
     # ── read tools (SQLAlchemy) ────────────────────────────────────────────
 
@@ -590,7 +608,12 @@ def run_mcp_server(db_path: str) -> None:
             Field(description="SQL SELECT query to execute against the photo library"),
         ],
     ) -> str:
-        """Run a read-only SQL query against the photo library. Only SELECT statements are allowed. Tables: photos, tags, albums, photo_tags, photo_albums, people, faces, events, photo_events. Use JOIN for relationships."""
+        """Run a read-only SQL query against the photo library. Read-only
+        statements only (SELECT, WITH, EXPLAIN, VALUES). Results are capped at
+        1000 rows (add LIMIT/OFFSET to paginate) and BLOB columns such as
+        thumbnail_data are summarized as '<blob N bytes>'. Tables: photos,
+        tags, albums, photo_tags, photo_albums, people, faces, events,
+        photo_events. Use JOIN for relationships."""
         return json.dumps(server.run_sql(query), indent=2, default=str)
 
     @mcp.tool(annotations=_read)

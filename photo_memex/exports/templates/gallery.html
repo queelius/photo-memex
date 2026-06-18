@@ -459,7 +459,14 @@ function openLightbox(index) {
     } else {
       b64 = d.thumbnail_data;
     }
-    imgDiv.innerHTML = '<img src="data:' + mime + ';base64,' + b64 + '" alt="' + escapeHtml(d.filename) + '">';
+    // Build the <img> via the DOM so thumbnail_mime (a DB value) cannot
+    // break out of the src attribute; validate it as an image/* type.
+    var safeMime = /^image\/[a-z0-9.+-]+$/i.test(mime) ? mime : "image/webp";
+    var lightboxImg = document.createElement("img");
+    lightboxImg.src = "data:" + safeMime + ";base64," + b64;
+    lightboxImg.alt = d.filename || "";
+    imgDiv.innerHTML = "";
+    imgDiv.appendChild(lightboxImg);
   } else {
     imgDiv.innerHTML = '<div class="no-thumb" style="font-size:4rem">[photo]</div>';
   }

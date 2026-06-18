@@ -15,9 +15,15 @@ _engine: Engine | None = None
 _SessionLocal: sessionmaker | None = None
 
 
-@event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record) -> None:
-    """Enable foreign keys and WAL mode for SQLite."""
+    """Enable foreign keys and WAL mode for SQLite.
+
+    Registered on photo-memex's own engine inside init_db (not on the
+    SQLAlchemy ``Engine`` class), so embedding photo_memex as a library
+    beside another engine (e.g. the federation layer's Postgres or a
+    different SQLite file) does not get these PRAGMAs forced on its
+    connections.
+    """
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.execute("PRAGMA journal_mode=WAL")
@@ -97,6 +103,8 @@ def init_db(db_path: Path, create_tables: bool = True) -> Engine:
         echo=False,
         connect_args={"check_same_thread": False},
     )
+    # Register the PRAGMA hook on THIS engine only (not the Engine class).
+    event.listen(_engine, "connect", set_sqlite_pragma)
 
     # Create session factory
     _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)

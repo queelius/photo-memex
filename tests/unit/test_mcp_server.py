@@ -108,6 +108,27 @@ class TestRunSql:
         assert len(rows) == 1
         assert rows[0]["cnt"] >= 1
 
+    def test_blob_columns_are_summarized(self, server):
+        """F8: BLOB values (e.g. thumbnail_data) must be summarized, not
+        stringified to multi-KB b'\\xff...' that blows the LLM context."""
+        rows = server.run_sql(
+            "SELECT thumbnail_data FROM photos WHERE thumbnail_data IS NOT NULL LIMIT 1"
+        )
+        if not rows:
+            import pytest
+
+            pytest.skip("no photo with a thumbnail in the fixture")
+        value = rows[0]["thumbnail_data"]
+        assert isinstance(value, str)
+        assert value.startswith("<blob ") and value.endswith(" bytes>")
+
+    def test_rows_are_capped(self, server):
+        """F8: results are bounded so a wide SELECT cannot blow the context."""
+        from photo_memex.mcp.server import _MAX_SQL_ROWS
+
+        rows = server.run_sql("SELECT id FROM photos")
+        assert len(rows) <= _MAX_SQL_ROWS
+
     @pytest.mark.parametrize(
         "statement",
         [

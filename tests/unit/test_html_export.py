@@ -86,6 +86,25 @@ class TestExportHtml:
         export_html(output, title="My Custom Gallery")
         assert "My Custom Gallery" in output.read_text(encoding="utf-8")
 
+    def test_title_is_html_escaped(self, populated_library, temp_dir):
+        """F12: the caller-supplied --title lands in <title>/<h1> and must be
+        escaped so it cannot inject markup into a published gallery."""
+        from photo_memex.exports.html import export_html
+
+        output = temp_dir / "evil_title.html"
+        export_html(output, title="<script>alert(1)</script>")
+        content = output.read_text(encoding="utf-8")
+        assert "<script>alert(1)</script>" not in content
+        assert "&lt;script&gt;alert(1)&lt;/script&gt;" in content
+
+    def test_lightbox_img_built_via_dom(self, html_export):
+        """F12: the lightbox <img> is built via the DOM with a validated mime,
+        not string-concatenated from the unescaped thumbnail_mime column."""
+        content = html_export.read_text(encoding="utf-8")
+        assert "'<img src=\"data:' + mime" not in content
+        assert "safeMime" in content
+        assert 'createElement("img")' in content
+
     def test_custom_output_path(self, populated_library, temp_dir):
         from photo_memex.exports.html import export_html
 

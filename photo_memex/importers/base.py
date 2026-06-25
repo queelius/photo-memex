@@ -85,6 +85,21 @@ class BaseImporter(ABC):
         """
         return item.source_metadata
 
+    @property
+    def ephemeral_root(self) -> Optional[Path]:
+        """Directory whose contents do not outlive this import, if any.
+
+        Importers that materialize scanned items into a temporary location
+        (e.g. unzipping a Takeout archive) return that root here. Yielded
+        ``ImportItem`` paths under it are valid only until ``cleanup()``
+        runs, so the import service copies such files into a durable,
+        library-managed location and records that durable path instead.
+
+        Returns None when scanned paths already live in durable storage
+        (the default, e.g. a plain filesystem import).
+        """
+        return None
+
     def cleanup(self) -> None:
         """Release any resources held for the duration of an import.
 

@@ -188,6 +188,32 @@ def test_import_from_zip_end_to_end(google_takeout_zip: Path, test_library):
     assert importer._temp_extract_dir is None
 
 
+def test_zip_import_original_path_survives_cleanup(google_takeout_zip: Path, test_library):
+    """Regression (R1, data-loss): a ZIP import extracts media into a temp
+    dir that cleanup() removes once the import finishes. The stored
+    original_path must therefore point at a durable, library-managed copy
+    (not into the deleted temp extraction), or every imported photo's
+    original_path dangles immediately after import."""
+    from photo_memex.services.import_service import ImportService
+    from photo_memex.core.config import get_config
+    from photo_memex.db.session import get_session
+    from photo_memex.db.models import Photo
+
+    importer = GoogleTakeoutImporter()
+    session = get_session()
+    service = ImportService(session, get_config())
+    result = service.import_from(importer, google_takeout_zip)
+    assert result.imported == 2, f"errors={result.error_paths}"
+
+    rows = session.query(Photo).all()
+    assert len(rows) == 2
+    for row in rows:
+        assert row.original_path, "original_path was not recorded"
+        assert Path(row.original_path).exists(), (
+            f"original_path dangles after import: {row.original_path}"
+        )
+
+
 def test_skip_json_files(google_takeout_dir: Path):
     """Test that JSON sidecar files are not imported as photos."""
     importer = GoogleTakeoutImporter()

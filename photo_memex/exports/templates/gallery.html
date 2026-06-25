@@ -280,7 +280,7 @@ function toggleAlbum(name, checked) {
 }
 
 function applyFilters() {
-  var sql = "SELECT DISTINCT p.id, p.filename, p.caption, p.is_favorite, p.is_video, p.thumbnail_data, p.thumbnail_mime, p.date_taken, p.original_path FROM photos p";
+  var sql = "SELECT DISTINCT p.id, p.filename, p.caption, p.is_favorite, p.is_video, p.thumbnail_data, p.thumbnail_mime, p.date_taken FROM photos p";
   var joins = [];
   var where = [];
   var params = [];

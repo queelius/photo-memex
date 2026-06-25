@@ -288,3 +288,169 @@ class TestExportHtmlPrivacy:
         finally:
             conn.close()
             tmp_path.unlink(missing_ok=True)
+
+
+def _photo_columns(conn) -> set[str]:
+    return {r[1] for r in conn.execute("PRAGMA table_info(photos)").fetchall()}
+
+
+def _table_names(conn) -> set[str]:
+    return {
+        r[0]
+        for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+    }
+
+
+class TestExportHtmlAllowlist:
+    """R2 (security): the HTML export must be deny-by-default, not copy-all.
+
+    The embedded SQLite image is fully readable by anyone who downloads the
+    bundle, so it must NOT carry raw ``source_metadata`` (which embeds the
+    full provider JSON), precise GPS, filesystem paths, import provenance,
+    or marginalia (unless explicitly opted in). The gallery must still render
+    from the slimmed DB.
+    """
+
+    @pytest.fixture
+    def library_with_pii(self, populated_library):
+        """Attach GPS, source_metadata, import_source, and marginalia to the
+        single populated photo so leaks are detectable as concrete strings."""
+        from datetime import datetime, timezone
+
+        from photo_memex.db.models import Photo, Marginalia
+        from photo_memex.db.session import get_session
+
+        session = get_session()
+        try:
+            photo = session.query(Photo).first()
+            assert photo is not None
+            photo.latitude = 34.052235
+            photo.longitude = -118.243683
+            photo.altitude = 99.5
+            photo.import_source = "google_takeout"
+            photo.source_metadata = {"raw": "SECRET_RAW_METADATA_DO_NOT_PUBLISH"}
+            photo.original_path = "/home/secret/private_originals/IMG_0001.jpg"
+            session.add(
+                Marginalia(
+                    photo_id=photo.id,
+                    body="SECRET_PRIVATE_NOTE_DO_NOT_PUBLISH",
+                    created_at=datetime.now(timezone.utc),
+                )
+            )
+            session.commit()
+            pid = photo.id
+        finally:
+            session.close()
+        return pid
+
+    def test_default_export_drops_source_metadata(self, library_with_pii, temp_dir):
+        from photo_memex.exports.html import export_html
+
+        output = temp_dir / "allowlist.html"
+        export_html(output)
+        content = output.read_text(encoding="utf-8")
+        conn, tmp_path = _exported_db_conn(content)
+        try:
+            cols = _photo_columns(conn)
+            assert "source_metadata" not in cols, "raw source_metadata shipped"
+            # And the raw JSON string must not survive anywhere in the image.
+            assert b"SECRET_RAW_METADATA_DO_NOT_PUBLISH" not in tmp_path.read_bytes()
+        finally:
+            conn.close()
+            tmp_path.unlink(missing_ok=True)
+
+    def test_default_export_drops_gps(self, library_with_pii, temp_dir):
+        from photo_memex.exports.html import export_html
+
+        output = temp_dir / "allowlist_gps.html"
+        export_html(output)
+        content = output.read_text(encoding="utf-8")
+        conn, tmp_path = _exported_db_conn(content)
+        try:
+            cols = _photo_columns(conn)
+            # Precise GPS columns must be gone (coordinates leak home/work).
+            assert "latitude" not in cols
+            assert "longitude" not in cols
+            assert "altitude" not in cols
+            # No precise coordinate string should survive in the image.
+            assert b"34.052235" not in tmp_path.read_bytes()
+            assert b"-118.243683" not in tmp_path.read_bytes()
+        finally:
+            conn.close()
+            tmp_path.unlink(missing_ok=True)
+
+    def test_default_export_drops_paths_and_provenance(self, library_with_pii, temp_dir):
+        from photo_memex.exports.html import export_html
+
+        output = temp_dir / "allowlist_paths.html"
+        export_html(output)
+        content = output.read_text(encoding="utf-8")
+        conn, tmp_path = _exported_db_conn(content)
+        try:
+            cols = _photo_columns(conn)
+            assert "original_path" not in cols, "filesystem path shipped"
+            assert "import_source" not in cols, "import provenance shipped"
+            assert b"/home/secret/private_originals" not in tmp_path.read_bytes()
+        finally:
+            conn.close()
+            tmp_path.unlink(missing_ok=True)
+
+    def test_default_export_drops_marginalia(self, library_with_pii, temp_dir):
+        from photo_memex.exports.html import export_html
+
+        output = temp_dir / "allowlist_notes.html"
+        export_html(output)
+        content = output.read_text(encoding="utf-8")
+        conn, tmp_path = _exported_db_conn(content)
+        try:
+            tables = _table_names(conn)
+            assert "marginalia" not in tables, "private notes shipped by default"
+            assert b"SECRET_PRIVATE_NOTE_DO_NOT_PUBLISH" not in tmp_path.read_bytes()
+        finally:
+            conn.close()
+            tmp_path.unlink(missing_ok=True)
+
+    def test_include_notes_reincludes_marginalia(self, library_with_pii, temp_dir):
+        from photo_memex.exports.html import export_html
+
+        output = temp_dir / "allowlist_with_notes.html"
+        export_html(output, include_notes=True)
+        content = output.read_text(encoding="utf-8")
+        conn, tmp_path = _exported_db_conn(content)
+        try:
+            tables = _table_names(conn)
+            assert "marginalia" in tables, "--include-notes did not re-include notes"
+            count = conn.execute("SELECT count(*) FROM marginalia").fetchone()[0]
+            assert count >= 1
+            assert b"SECRET_PRIVATE_NOTE_DO_NOT_PUBLISH" in tmp_path.read_bytes()
+        finally:
+            conn.close()
+            tmp_path.unlink(missing_ok=True)
+
+    def test_gallery_still_renders_core_columns(self, library_with_pii, temp_dir):
+        """Deny-by-default must keep the columns the gallery actually reads,
+        so the published page still works."""
+        from photo_memex.exports.html import export_html
+
+        output = temp_dir / "allowlist_render.html"
+        export_html(output)
+        content = output.read_text(encoding="utf-8")
+        conn, tmp_path = _exported_db_conn(content)
+        try:
+            cols = _photo_columns(conn)
+            # Grid + lightbox read these (see gallery.html queries).
+            for needed in (
+                "id", "filename", "caption", "is_favorite", "is_video",
+                "thumbnail_data", "thumbnail_mime", "date_taken",
+                "file_size", "width", "height", "camera_make", "camera_model",
+                "location_name",
+            ):
+                assert needed in cols, f"gallery column {needed!r} was dropped"
+            # The photo row must survive and be queryable.
+            n = conn.execute(
+                "SELECT count(*) FROM photos WHERE archived_at IS NULL"
+            ).fetchone()[0]
+            assert n >= 1
+        finally:
+            conn.close()
+            tmp_path.unlink(missing_ok=True)

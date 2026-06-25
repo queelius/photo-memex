@@ -722,14 +722,24 @@ def import_arkiv_cmd(
 def export_html_cmd(
     output: Path | None = typer.Option(None, "--output", "-o", help="Output HTML file"),
     title: str = typer.Option("photo-memex Photo Library", "--title", "-t", help="Gallery title"),
+    include_notes: bool = typer.Option(
+        False,
+        "--include-notes",
+        help="Include private marginalia (notes) in the exported bundle (off by default)",
+    ),
 ) -> None:
-    """Export library as single-file HTML photo browser."""
+    """Export library as single-file HTML photo browser.
+
+    The export is deny-by-default: raw source_metadata, precise GPS,
+    filesystem paths, import provenance, and private notes are stripped from
+    the embedded DB. Pass --include-notes to ship marginalia.
+    """
     _require_library()
 
     from photo_memex.exports.html import export_html
 
     output_path = output or Path("photo-memex-export.html")
-    count = export_html(output_path, title=title)
+    count = export_html(output_path, title=title, include_notes=include_notes)
     console.print(f"[green]Exported {count} photos to {output_path}[/green]")
 
 

@@ -55,6 +55,18 @@ class PtkConfig:
             raise ValueError("library_path not set")
         return self.library_path / "thumbnails"
 
+    @property
+    def originals_path(self) -> Path:
+        """Get the path to the library-managed originals directory.
+
+        Media imported from ephemeral sources (e.g. a Google Takeout ZIP
+        extracted to a temp dir) is copied here so the stored original_path
+        survives after the temporary extraction is torn down.
+        """
+        if self.library_path is None:
+            raise ValueError("library_path not set")
+        return self.library_path / "originals"
+
     @classmethod
     def default_library_path(cls) -> Path:
         """Get the default library path."""

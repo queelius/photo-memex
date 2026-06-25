@@ -41,6 +41,18 @@ class GoogleTakeoutImporter(BaseImporter):
     def name(self) -> str:
         return "google_takeout"
 
+    @property
+    def ephemeral_root(self) -> Optional[Path]:
+        """The temp extraction dir (only set for ZIP imports).
+
+        ZIP imports extract into a temp dir that ``cleanup()`` removes once
+        the import finishes; directory imports read files in place, so this
+        is None for them. The import service uses this to copy media out of
+        the soon-to-be-deleted extraction into the library before recording
+        ``original_path``.
+        """
+        return self._temp_extract_dir
+
     def can_handle(self, path: Path) -> bool:
         """Check if path is a Google Takeout export.
 

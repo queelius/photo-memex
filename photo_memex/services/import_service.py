@@ -1,6 +1,7 @@
 """Import service for orchestrating photo imports."""
 
 import mimetypes
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Callable
@@ -66,7 +67,9 @@ class ImportService:
                     progress_callback(i + 1, result.total_files, str(item.path))
 
                 try:
-                    photo_id = self._import_item(item, importer.name, dry_run)
+                    photo_id = self._import_item(
+                        item, importer.name, dry_run, importer.ephemeral_root
+                    )
                     if photo_id:
                         result.imported += 1
                         result.imported_ids.append(photo_id)
@@ -119,6 +122,7 @@ class ImportService:
         item: ImportItem,
         source: str,
         dry_run: bool,
+        ephemeral_root: Optional[Path] = None,
     ) -> Optional[str]:
         """Import a single item.
 
@@ -126,6 +130,10 @@ class ImportService:
             item: The item to import
             source: Import source identifier
             dry_run: If True, don't actually import
+            ephemeral_root: If set, items whose path is under this directory
+                live in temporary storage that is torn down after the import.
+                Such files are copied into a durable library-managed
+                originals directory so the stored original_path survives.
 
         Returns:
             Photo ID if imported, None if duplicate
@@ -181,11 +189,18 @@ class ImportService:
             except ThumbnailError:
                 pass  # Thumbnail generation failed, continue without
 
+        # Resolve a durable path for original_path. Files scanned from an
+        # ephemeral extraction (e.g. a Takeout ZIP unpacked to a temp dir)
+        # would otherwise leave original_path dangling once the temp dir is
+        # torn down at the end of the import, so copy them into the
+        # library-managed originals directory and record that copy instead.
+        durable_path = self._durable_original_path(path, file_hash, ephemeral_root)
+
         # Create photo record
         now = datetime.now(timezone.utc)
         photo = Photo(
             id=file_hash,
-            original_path=str(path.resolve()),
+            original_path=str(durable_path),
             filename=path.name,
             file_size=file_size,
             mime_type=mime_type,
@@ -236,6 +251,43 @@ class ImportService:
 
         self.session.add(photo)
         return file_hash
+
+    def _durable_original_path(
+        self,
+        path: Path,
+        file_hash: str,
+        ephemeral_root: Optional[Path],
+    ) -> Path:
+        """Return a path for original_path that outlives the import.
+
+        For files already in durable storage, this is just the resolved
+        source path (behavior-preserving for filesystem imports). For files
+        under an ephemeral extraction root, copy the file into the library's
+        originals directory (keyed by content hash to avoid collisions and
+        stay idempotent across re-imports) and return that copy's path.
+        """
+        resolved = path.resolve()
+
+        if ephemeral_root is None:
+            return resolved
+
+        ephemeral_root = ephemeral_root.resolve()
+        try:
+            is_ephemeral = resolved.is_relative_to(ephemeral_root)
+        except AttributeError:  # Python < 3.9 fallback (not expected here)
+            is_ephemeral = str(resolved).startswith(str(ephemeral_root))
+
+        if not is_ephemeral:
+            return resolved
+
+        originals_dir = self.config.originals_path
+        # Shard by the first two hash chars to avoid one huge flat dir.
+        dest_dir = originals_dir / file_hash[:2]
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / f"{file_hash}{path.suffix.lower()}"
+        if not dest.exists():
+            shutil.copy2(resolved, dest)
+        return dest.resolve()
 
     def _get_mime_type(self, path: Path) -> str:
         """Get MIME type for a file."""

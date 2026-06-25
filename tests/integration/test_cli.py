@@ -298,3 +298,183 @@ def test_set_tag(temp_dir: Path, sample_image: Path):
         assert "1" in tag_result.output
     finally:
         os.chdir(original_cwd)
+
+
+# ---------------------------------------------------------------------------
+# [R3] Hardened CLI photo resolution for show / set
+# ---------------------------------------------------------------------------
+
+
+def _init_library_with_photos(library_dir: Path, ids: list[str]) -> None:
+    """Init a library in ``library_dir`` and insert photos with controlled IDs."""
+    from datetime import UTC, datetime
+
+    from photo_memex.core.config import PtkConfig, set_config
+    from photo_memex.db.models import Photo
+    from photo_memex.db.session import init_db, session_scope
+
+    runner.invoke(app, ["init", str(library_dir)])
+    config = PtkConfig(library_path=library_dir)
+    set_config(config)
+    init_db(config.database_path, create_tables=False)
+    with session_scope() as session:
+        for pid in ids:
+            session.add(
+                Photo(
+                    id=pid,
+                    original_path=f"/tmp/{pid[:8]}.jpg",
+                    filename=f"{pid[:8]}.jpg",
+                    file_size=10,
+                    mime_type="image/jpeg",
+                    date_imported=datetime.now(UTC),
+                )
+            )
+
+
+def test_set_rejects_ambiguous_prefix(temp_dir: Path):
+    """An ambiguous prefix must raise rather than mutate the first match."""
+    import os
+
+    from photo_memex.db.models import Photo
+    from photo_memex.db.session import close_db, session_scope
+
+    library_dir = temp_dir / "library"
+    library_dir.mkdir()
+    id_a = "abcd" + "1" * 60
+    id_b = "abcd" + "2" * 60
+    _init_library_with_photos(library_dir, [id_a, id_b])
+    close_db()
+
+    original_cwd = os.getcwd()
+    os.chdir(library_dir)
+    try:
+        result = runner.invoke(app, ["set", "abcd", "--favorite"])
+        assert result.exit_code != 0
+        assert "ambiguous" in result.output.lower()
+
+        # Neither photo was mutated.
+        from photo_memex.core.config import PtkConfig, set_config
+        from photo_memex.db.session import init_db
+
+        set_config(PtkConfig(library_path=library_dir))
+        init_db(library_dir / "photo-memex.db", create_tables=False)
+        with session_scope() as session:
+            favs = session.query(Photo).filter(Photo.is_favorite.is_(True)).count()
+        assert favs == 0
+    finally:
+        os.chdir(original_cwd)
+        close_db()
+
+
+def test_set_rejects_short_prefix(temp_dir: Path):
+    """A prefix shorter than 4 hex chars must raise, not mutate."""
+    import os
+
+    from photo_memex.db.session import close_db
+
+    library_dir = temp_dir / "library"
+    library_dir.mkdir()
+    pid = "abcd" + "1" * 60
+    _init_library_with_photos(library_dir, [pid])
+    close_db()
+
+    original_cwd = os.getcwd()
+    os.chdir(library_dir)
+    try:
+        result = runner.invoke(app, ["set", "ab", "--favorite"])
+        assert result.exit_code != 0
+        assert "4" in result.output
+    finally:
+        os.chdir(original_cwd)
+        close_db()
+
+
+def test_set_rejects_wildcard_prefix(temp_dir: Path):
+    """A LIKE-wildcard-bearing prefix must not match any photo."""
+    import os
+
+    from photo_memex.db.models import Photo
+    from photo_memex.db.session import close_db, session_scope
+
+    library_dir = temp_dir / "library"
+    library_dir.mkdir()
+    pid = "abcd" + "1" * 60
+    _init_library_with_photos(library_dir, [pid])
+    close_db()
+
+    original_cwd = os.getcwd()
+    os.chdir(library_dir)
+    try:
+        result = runner.invoke(app, ["set", "a_cd", "--favorite"])
+        assert result.exit_code != 0
+
+        from photo_memex.core.config import PtkConfig, set_config
+        from photo_memex.db.session import init_db
+
+        set_config(PtkConfig(library_path=library_dir))
+        init_db(library_dir / "photo-memex.db", create_tables=False)
+        with session_scope() as session:
+            favs = session.query(Photo).filter(Photo.is_favorite.is_(True)).count()
+        assert favs == 0
+    finally:
+        os.chdir(original_cwd)
+        close_db()
+
+
+def test_set_does_not_resolve_archived_photo(temp_dir: Path):
+    """An archived photo must not be resolvable for mutation."""
+    import os
+    from datetime import UTC, datetime
+
+    from photo_memex.core.config import PtkConfig, set_config
+    from photo_memex.db.models import Photo
+    from photo_memex.db.session import close_db, init_db, session_scope
+
+    library_dir = temp_dir / "library"
+    library_dir.mkdir()
+    pid = "feed" + "1" * 60
+    _init_library_with_photos(library_dir, [pid])
+    # Archive it.
+    with session_scope() as session:
+        photo = session.query(Photo).filter(Photo.id == pid).one()
+        photo.archived_at = datetime.now(UTC)
+    close_db()
+
+    original_cwd = os.getcwd()
+    os.chdir(library_dir)
+    try:
+        result = runner.invoke(app, ["set", pid[:8], "--favorite"])
+        assert result.exit_code != 0
+
+        set_config(PtkConfig(library_path=library_dir))
+        init_db(library_dir / "photo-memex.db", create_tables=False)
+        with session_scope() as session:
+            photo = session.query(Photo).filter(Photo.id == pid).one()
+            assert photo.is_favorite is False
+    finally:
+        os.chdir(original_cwd)
+        close_db()
+
+
+def test_show_rejects_ambiguous_prefix(temp_dir: Path):
+    """show must refuse an ambiguous prefix rather than silently pick one."""
+    import os
+
+    from photo_memex.db.session import close_db
+
+    library_dir = temp_dir / "library"
+    library_dir.mkdir()
+    id_a = "abcd" + "1" * 60
+    id_b = "abcd" + "2" * 60
+    _init_library_with_photos(library_dir, [id_a, id_b])
+    close_db()
+
+    original_cwd = os.getcwd()
+    os.chdir(library_dir)
+    try:
+        result = runner.invoke(app, ["show", "abcd"])
+        assert result.exit_code != 0
+        assert "ambiguous" in result.output.lower()
+    finally:
+        os.chdir(original_cwd)
+        close_db()

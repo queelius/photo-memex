@@ -217,17 +217,28 @@ def _parse_jsonl_lines(reader) -> Iterable[Dict[str, Any]]:
 def _parse_timestamp(ts: Optional[str]) -> Optional[datetime]:
     if not ts:
         return None
+    dt: Optional[datetime] = None
     try:
-        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
     except ValueError:
         # Fallback: strict RFC3339 variants.
         cleaned = ts.replace("Z", "+00:00").split("+")[0]
         for fmt in ("%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
             try:
-                return datetime.strptime(cleaned, fmt)
+                dt = datetime.strptime(cleaned, fmt)
+                break
             except ValueError:
                 continue
-    return None
+    if dt is None:
+        return None
+    # [R4] Always return a tz-aware datetime. An offset-less arkiv timestamp
+    # would otherwise be naive, and mixing it with the tz-aware date_taken
+    # values from normal imports raises TypeError in the min/max used by event
+    # date computation. Attach UTC when no offset is present; an explicit
+    # offset is preserved (any two aware datetimes compare fine).
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt
 
 
 def _sha256_from_photo_uri(uri: Optional[str]) -> Optional[str]:

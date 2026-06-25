@@ -276,7 +276,14 @@ def test_show_photo(library_with_photos: Path):
 
 
 def test_show_photo_not_found(library_with_photos: Path):
-    """Test showing non-existent photo."""
+    """Test showing a non-existent photo (valid hex prefix, no match)."""
+    result = runner.invoke(app, ["show", "deadbeef"])
+    assert result.exit_code == 1
+    assert "no photo found" in result.output.lower()
+
+
+def test_show_photo_malformed_prefix(library_with_photos: Path):
+    """A non-hex or too-short prefix is rejected, never silently mismatched."""
     result = runner.invoke(app, ["show", "nonexistent123"])
     assert result.exit_code == 1
-    assert "not found" in result.output.lower()
+    assert "hexadecimal" in result.output.lower()

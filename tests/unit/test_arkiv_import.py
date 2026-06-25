@@ -67,6 +67,34 @@ class TestHelpers:
         assert _parse_timestamp(None) is None
         assert _parse_timestamp("") is None
 
+    def test_parse_timestamp_offsetless_is_tz_aware(self):
+        # [R4] An offset-less timestamp must come back tz-aware (UTC attached)
+        # so it can be compared against aware date_taken values via min/max.
+        from photo_memex.importers.arkiv import _parse_timestamp
+
+        ts = _parse_timestamp("2020-01-01T12:00:00")
+        assert ts is not None
+        assert ts.tzinfo is not None
+        assert ts.utcoffset() == UTC.utcoffset(None)
+
+    def test_parse_timestamp_offsetless_no_micros_is_tz_aware(self):
+        # The strptime fallback path (no microseconds) must also be aware.
+        from photo_memex.importers.arkiv import _parse_timestamp
+
+        ts = _parse_timestamp("2020-01-01 12:00:00".replace(" ", "T"))
+        assert ts is not None
+        assert ts.tzinfo is not None
+
+    def test_parse_timestamp_keeps_explicit_offset(self):
+        # An explicit offset must be preserved, not clobbered to UTC.
+        from datetime import timedelta
+
+        from photo_memex.importers.arkiv import _parse_timestamp
+
+        ts = _parse_timestamp("2020-01-01T12:00:00+05:00")
+        assert ts is not None
+        assert ts.utcoffset() == timedelta(hours=5)
+
     def test_sha256_from_photo_uri(self):
         from photo_memex.importers.arkiv import _sha256_from_photo_uri
 

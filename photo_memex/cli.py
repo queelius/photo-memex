@@ -10,6 +10,7 @@ Essential commands:
 """
 
 import os
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -55,6 +56,40 @@ def _require_library(path: Path | None = None) -> Path:
     set_config(config)
     init_db(config.database_path, create_tables=False)
     return library_path
+
+
+# SHA256 photo IDs are pure hex; a valid prefix is 4 to 64 hex chars. This
+# mirrors the hardening in the MCP server's _resolve_photo: a too-short or
+# wildcard-bearing prefix must never resolve (and then mutate) the wrong photo.
+_PHOTO_PREFIX_RE = re.compile(r"^[0-9a-f]{4,64}$")
+
+
+def _resolve_photo_prefix(session, photo_id: str) -> Photo:
+    """Resolve a single active photo by full ID or hex prefix.
+
+    Raises ValueError if the prefix is malformed (not 4 to 64 hex chars),
+    matches no active photo, or is ambiguous. autoescape=True treats any
+    %/_ as literals rather than LIKE wildcards, and archived photos are
+    excluded so writes never target a soft-deleted record.
+    """
+    if not photo_id or not _PHOTO_PREFIX_RE.match(photo_id):
+        raise ValueError(
+            "Photo ID or prefix must be 4 to 64 hexadecimal characters"
+        )
+    matches = (
+        session.query(Photo)
+        .filter(
+            Photo.id.startswith(photo_id, autoescape=True),
+            Photo.archived_at.is_(None),
+        )
+        .limit(2)
+        .all()
+    )
+    if not matches:
+        raise ValueError(f"No photo found matching ID prefix: {photo_id}")
+    if len(matches) > 1:
+        raise ValueError(f"Ambiguous prefix '{photo_id}' matches multiple photos")
+    return matches[0]
 
 
 @app.callback()
@@ -260,11 +295,12 @@ def show(
     _require_library()
 
     with session_scope() as session:
-        # Find photo by partial ID
-        photo = session.query(Photo).filter(Photo.id.startswith(photo_id)).first()
-        if not photo:
-            console.print(f"[red]Photo not found: {photo_id}[/red]")
-            raise typer.Exit(1)
+        # Find photo by full ID or hardened hex prefix (see _resolve_photo_prefix).
+        try:
+            photo = _resolve_photo_prefix(session, photo_id)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(1) from exc
 
         # Basic info
         console.print(f"\n[bold]{photo.filename}[/bold]")
@@ -328,10 +364,14 @@ def set_metadata(
         modified = 0
 
         for photo_id in photo_ids:
-            photo = session.query(Photo).filter(Photo.id.startswith(photo_id)).first()
-            if not photo:
-                console.print(f"[yellow]Photo not found: {photo_id}[/yellow]")
-                continue
+            # Hardened resolution: a malformed, ambiguous, or archived-only
+            # prefix must error out rather than silently mutate the wrong (or
+            # an archived) photo. See _resolve_photo_prefix.
+            try:
+                photo = _resolve_photo_prefix(session, photo_id)
+            except ValueError as exc:
+                console.print(f"[red]{exc}[/red]")
+                raise typer.Exit(1) from exc
 
             # Add tags
             for t in tag or []:

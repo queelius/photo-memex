@@ -202,3 +202,26 @@ class TestQueryResult:
         result = QueryResult(photos=photos, sql="SELECT *", params={"a": 1})
 
         assert result.count == 3
+
+
+class TestExecuteSqlReadOnly:
+    """R7: the raw --sql path must be read-only (no writes/DDL)."""
+
+    def test_execute_sql_blocks_writes(self, db_session):
+        import pytest
+        from sqlalchemy.exc import OperationalError
+
+        from photo_memex.query.executor import execute_sql
+
+        with pytest.raises(OperationalError):
+            execute_sql(db_session, "UPDATE photos SET caption = 'x'")
+
+    def test_execute_sql_resets_query_only_after_read(self, db_session):
+        from sqlalchemy import text
+
+        from photo_memex.query.executor import execute_sql
+
+        # A read-only query must not leave the connection read-only: a
+        # subsequent write (here a temp table) still succeeds.
+        execute_sql(db_session, "SELECT id FROM photos")
+        db_session.execute(text("CREATE TEMP TABLE _r7_probe (x INTEGER)"))

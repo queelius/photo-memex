@@ -144,28 +144,35 @@ def execute_sql(
         # parses cleanly: SELECT * FROM (SELECT ...) LIMIT N
         sql = f"SELECT * FROM ({sql.rstrip().rstrip(';').rstrip()}) LIMIT {limit}"
 
-    result = session.execute(text(sql))
-    rows = result.fetchall()
+    # [R7] The raw-SQL path is read-only: guard the connection with
+    # query_only so a user query (ptk q --sql "...") cannot write or DDL to
+    # the library. Reset afterward so a pooled connection is not left
+    # read-only for later writes.
+    session.execute(text("PRAGMA query_only=ON"))
+    try:
+        result = session.execute(text(sql))
+        rows = result.fetchall()
 
-    # Try to get Photo objects
-    # Assume first column is photo ID
-    photo_ids = []
-    for row in rows:
-        if row:
-            photo_ids.append(row[0])
+        # Try to get Photo objects. Assume first column is photo ID.
+        photo_ids = []
+        for row in rows:
+            if row:
+                photo_ids.append(row[0])
 
-    if not photo_ids:
-        return QueryResult(photos=[], sql=sql, params={})
+        if not photo_ids:
+            return QueryResult(photos=[], sql=sql, params={})
 
-    photos = session.query(Photo).filter(Photo.id.in_(photo_ids)).all()
+        photos = session.query(Photo).filter(Photo.id.in_(photo_ids)).all()
 
-    # Preserve order
-    id_to_photo = {p.id: p for p in photos}
-    ordered_photos = [id_to_photo.get(pid) for pid in photo_ids]
-    ordered_photos = [p for p in ordered_photos if p is not None]
+        # Preserve order
+        id_to_photo = {p.id: p for p in photos}
+        ordered_photos = [id_to_photo.get(pid) for pid in photo_ids]
+        ordered_photos = [p for p in ordered_photos if p is not None]
 
-    return QueryResult(
-        photos=ordered_photos,
-        sql=sql,
-        params={},
-    )
+        return QueryResult(
+            photos=ordered_photos,
+            sql=sql,
+            params={},
+        )
+    finally:
+        session.execute(text("PRAGMA query_only=OFF"))

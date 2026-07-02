@@ -12,7 +12,16 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from photo_memex.db.models import Album, Event, Face, Person, Photo, Tag
+from photo_memex.core.uri import InvalidUriError, build_photo_uri, parse_uri
+from photo_memex.db.models import (
+    Album,
+    Event,
+    Face,
+    Marginalia,
+    Person,
+    Photo,
+    Tag,
+)
 from photo_memex.db.session import session_scope
 
 # Cap rows returned by the read-only run_sql tool so a wide/large SELECT
@@ -131,6 +140,137 @@ class PtkServer:
             session.flush()
             return {"status": "ok", **self._photo_summary(photo)}
 
+    @staticmethod
+    def _resolve_photo_any(session, photo_id: str) -> Photo:
+        """Resolve a photo by full id or prefix, INCLUDING archived rows.
+
+        Used by archive/restore so a soft-deleted photo (which _resolve_photo
+        hides) can still be targeted.
+        """
+        if not photo_id or len(photo_id) < 4:
+            raise ValueError("Photo ID or prefix must be at least 4 characters")
+        matches = (
+            session.query(Photo)
+            .filter(Photo.id.startswith(photo_id, autoescape=True))
+            .limit(2)
+            .all()
+        )
+        if not matches:
+            raise ValueError(f"No photo found matching ID prefix: {photo_id}")
+        if len(matches) > 1:
+            raise ValueError(
+                f"Ambiguous prefix '{photo_id}' matches multiple photos"
+            )
+        return matches[0]
+
+    # ── soft-delete + marginalia write tools (R6) ──────────────────────────
+
+    def archive_photo(self, photo_id: str, hard: bool = False) -> dict[str, Any]:
+        """Soft-delete a photo (default) or hard-delete it (hard=True).
+
+        Soft delete sets archived_at so default reads hide it while trails and
+        marginalia keep resolving it. Idempotent: re-archiving preserves the
+        original timestamp.
+        """
+        with session_scope() as session:
+            photo = self._resolve_photo_any(session, photo_id)
+            pid = photo.id
+            if hard:
+                session.delete(photo)
+                session.flush()
+                return {"status": "ok", "photo_id": pid, "deleted": "hard"}
+            if photo.archived_at is None:
+                photo.archived_at = datetime.now(UTC)
+            session.flush()
+            return {
+                "status": "ok",
+                "photo_id": pid,
+                "archived_at": str(photo.archived_at),
+            }
+
+    def restore_photo(self, photo_id: str) -> dict[str, Any]:
+        """Clear archived_at on a (soft-deleted) photo."""
+        with session_scope() as session:
+            photo = self._resolve_photo_any(session, photo_id)
+            photo.archived_at = None
+            session.flush()
+            return {"status": "ok", "photo_id": photo.id, "archived_at": None}
+
+    def add_marginalia(self, photo_id: str, body: str) -> dict[str, Any]:
+        """Attach a free-form note to a photo. Returns the created note."""
+        if not body or not body.strip():
+            raise ValueError("marginalia body must be a non-empty string")
+        with session_scope() as session:
+            photo = self._resolve_photo_any(session, photo_id)
+            note = Marginalia(
+                photo_id=photo.id, body=body, created_at=datetime.now(UTC)
+            )
+            session.add(note)
+            session.flush()
+            return {"status": "ok", **self._marginalia_record(note)}
+
+    def list_marginalia(
+        self, photo_id: str, include_archived: bool = False
+    ) -> list[dict[str, Any]]:
+        """List a photo's notes (active only unless include_archived)."""
+        with session_scope() as session:
+            photo = self._resolve_photo_any(session, photo_id)
+            q = session.query(Marginalia).filter(Marginalia.photo_id == photo.id)
+            if not include_archived:
+                q = q.filter(Marginalia.archived_at.is_(None))
+            return [
+                self._marginalia_record(m)
+                for m in q.order_by(Marginalia.id.asc()).all()
+            ]
+
+    def get_marginalia(self, note_id: int) -> dict[str, Any]:
+        """Return a single note by id (resolves archived notes too)."""
+        with session_scope() as session:
+            note = session.get(Marginalia, note_id)
+            if note is None:
+                raise ValueError(f"marginalia {note_id} not found")
+            return self._marginalia_record(note)
+
+    def update_marginalia(self, note_id: int, body: str) -> dict[str, Any]:
+        """Replace a note's body and bump updated_at."""
+        if not body or not body.strip():
+            raise ValueError("marginalia body must be a non-empty string")
+        with session_scope() as session:
+            note = session.get(Marginalia, note_id)
+            if note is None:
+                raise ValueError(f"marginalia {note_id} not found")
+            note.body = body
+            note.updated_at = datetime.now(UTC)
+            session.flush()
+            return {"status": "ok", **self._marginalia_record(note)}
+
+    def delete_marginalia(
+        self, note_id: int, hard: bool = False
+    ) -> dict[str, Any]:
+        """Soft-delete a note (default) or hard-delete it (hard=True)."""
+        with session_scope() as session:
+            note = session.get(Marginalia, note_id)
+            if note is None:
+                raise ValueError(f"marginalia {note_id} not found")
+            if hard:
+                session.delete(note)
+                session.flush()
+                return {"status": "ok", "id": note_id, "deleted": "hard"}
+            if note.archived_at is None:
+                note.archived_at = datetime.now(UTC)
+            session.flush()
+            return {"status": "ok", **self._marginalia_record(note)}
+
+    def restore_marginalia(self, note_id: int) -> dict[str, Any]:
+        """Clear archived_at on a (soft-deleted) note."""
+        with session_scope() as session:
+            note = session.get(Marginalia, note_id)
+            if note is None:
+                raise ValueError(f"marginalia {note_id} not found")
+            note.archived_at = None
+            session.flush()
+            return {"status": "ok", **self._marginalia_record(note)}
+
     # ── read tools (raw sqlite3) ───────────────────────────────────────────
 
     def get_schema(self) -> str:
@@ -212,12 +352,10 @@ class PtkServer:
 
             return [image, json.dumps(metadata, default=str)]
 
-    def get_photo(self, photo_id: str) -> dict[str, Any]:
-        """Return comprehensive metadata for a single photo."""
-        with session_scope() as session:
-            photo = self._resolve_photo(session, photo_id)
-
-            return {
+    @staticmethod
+    def _photo_record(photo: Photo) -> dict[str, Any]:
+        """Serialize a Photo to the comprehensive metadata dict."""
+        return {
                 "photo_id": photo.id,
                 "filename": photo.filename,
                 "original_path": photo.original_path,
@@ -244,10 +382,84 @@ class PtkServer:
                 "is_screenshot": photo.is_screenshot,
                 "tags": _active_names(photo.tags),
                 "albums": _active_names(photo.albums),
-                "people": self._people_names(photo),
+                "people": PtkServer._people_names(photo),
                 "events": _active_names(photo.events),
                 "has_thumbnail": photo.thumbnail_data is not None,
             }
+
+    @staticmethod
+    def _marginalia_record(m: Marginalia) -> dict[str, Any]:
+        """Serialize a Marginalia note to a dict."""
+        return {
+            "id": m.id,
+            "photo_id": m.photo_id,
+            "photo_uri": build_photo_uri(m.photo_id) if m.photo_id else None,
+            "body": m.body,
+            "created_at": str(m.created_at) if m.created_at else None,
+            "updated_at": str(m.updated_at) if m.updated_at else None,
+            "archived_at": str(m.archived_at) if m.archived_at else None,
+        }
+
+    def get_photo(self, photo_id: str) -> dict[str, Any]:
+        """Return comprehensive metadata for a single photo."""
+        with session_scope() as session:
+            photo = self._resolve_photo(session, photo_id)
+            return self._photo_record(photo)
+
+    def get_record(self, uri: str) -> dict[str, Any]:
+        """Resolve a photo-memex:// URI to its record (federation contract).
+
+        Accepts photo-memex://photo/<sha256> and
+        photo-memex://marginalia/<id>. A URI fragment (e.g. #region=x,y,w,h)
+        addresses a position within a record, so it is stripped before lookup
+        and echoed back. Archived records still resolve (flagged) so
+        cross-archive references survive soft-delete. Photo lookup is exact on
+        the full SHA256 (the durable id the URI carries), not a prefix.
+        """
+        try:
+            parsed = parse_uri(uri)
+        except InvalidUriError as e:
+            return {"error": "invalid_uri", "detail": str(e)}
+
+        with session_scope() as session:
+            if parsed.kind == "photo":
+                photo = (
+                    session.query(Photo)
+                    .filter(Photo.id == parsed.id)
+                    .first()
+                )
+                if photo is None:
+                    return {"error": "not_found", "kind": "photo", "id": parsed.id}
+                record = self._photo_record(photo)
+                archived = photo.archived_at is not None
+            elif parsed.kind == "marginalia":
+                m = None
+                if parsed.id.isdigit():
+                    m = (
+                        session.query(Marginalia)
+                        .filter(Marginalia.id == int(parsed.id))
+                        .first()
+                    )
+                if m is None:
+                    return {
+                        "error": "not_found",
+                        "kind": "marginalia",
+                        "id": parsed.id,
+                    }
+                record = self._marginalia_record(m)
+                archived = m.archived_at is not None
+            else:  # pragma: no cover - parse_uri already allowlists kinds
+                return {"error": "unknown_kind", "kind": parsed.kind}
+
+        result: dict[str, Any] = {
+            "kind": parsed.kind,
+            "uri": uri,
+            "record": record,
+            "archived": archived,
+        }
+        if parsed.fragment:
+            result["fragment"] = parsed.fragment
+        return result
 
     def list_tags(self) -> list[dict[str, Any]]:
         """Return all tags with photo counts."""
@@ -627,6 +839,21 @@ def run_mcp_server(db_path: str) -> None:
         return json.dumps(server.get_photo(photo_id), indent=2, default=str)
 
     @mcp.tool(annotations=_read)
+    def get_record(
+        uri: Annotated[
+            str,
+            Field(
+                description="A photo-memex:// URI: photo-memex://photo/<sha256> "
+                "or photo-memex://marginalia/<id> (an optional #fragment such "
+                "as #region=x,y,w,h is echoed back). Resolves the record for "
+                "cross-archive references; archived records still resolve."
+            ),
+        ],
+    ) -> str:
+        """Resolve a photo-memex:// URI to its record (federation entrypoint)."""
+        return json.dumps(server.get_record(uri), indent=2, default=str)
+
+    @mcp.tool(annotations=_read)
     def list_tags() -> str:
         """List all tags in the library with their photo counts. Use this to see existing tags before adding new ones."""
         return json.dumps(server.list_tags(), indent=2)
@@ -810,5 +1037,77 @@ def run_mcp_server(db_path: str) -> None:
     ) -> str:
         """Set the same caption on multiple photos. Useful for batch classification."""
         return json.dumps(server.batch_set_caption(photo_ids, caption), default=str)
+
+    # ── soft-delete + marginalia tools (R6) ────────────────────────────
+
+    _note_id = Annotated[int, Field(description="Marginalia note id")]
+
+    @mcp.tool(annotations=_destructive)
+    def archive_photo(
+        photo_id: _photo_id,
+        hard: Annotated[
+            bool,
+            Field(description="Hard-delete instead of soft-delete (irreversible)"),
+        ] = False,
+    ) -> str:
+        """Soft-delete a photo (hidden from default reads, still resolvable) or hard-delete it with hard=True."""
+        return json.dumps(server.archive_photo(photo_id, hard=hard), default=str)
+
+    @mcp.tool(annotations=_write)
+    def restore_photo(photo_id: _photo_id) -> str:
+        """Restore a soft-deleted photo (clear its archived_at)."""
+        return json.dumps(server.restore_photo(photo_id), default=str)
+
+    @mcp.tool(annotations=_write)
+    def add_marginalia(
+        photo_id: _photo_id,
+        body: Annotated[str, Field(description="Free-form note text")],
+    ) -> str:
+        """Attach a free-form note (marginalia) to a photo."""
+        return json.dumps(server.add_marginalia(photo_id, body), default=str)
+
+    @mcp.tool(annotations=_read)
+    def list_marginalia(
+        photo_id: _photo_id,
+        include_archived: Annotated[
+            bool, Field(description="Include soft-deleted notes")
+        ] = False,
+    ) -> str:
+        """List the notes attached to a photo."""
+        return json.dumps(
+            server.list_marginalia(photo_id, include_archived=include_archived),
+            indent=2,
+            default=str,
+        )
+
+    @mcp.tool(annotations=_read)
+    def get_marginalia(note_id: _note_id) -> str:
+        """Get a single marginalia note by id."""
+        return json.dumps(server.get_marginalia(note_id), indent=2, default=str)
+
+    @mcp.tool(annotations=_write)
+    def update_marginalia(
+        note_id: _note_id,
+        body: Annotated[str, Field(description="New note text")],
+    ) -> str:
+        """Replace a note's body."""
+        return json.dumps(server.update_marginalia(note_id, body), default=str)
+
+    @mcp.tool(annotations=_destructive)
+    def delete_marginalia(
+        note_id: _note_id,
+        hard: Annotated[
+            bool, Field(description="Hard-delete instead of soft-delete")
+        ] = False,
+    ) -> str:
+        """Soft-delete a note (default) or hard-delete it with hard=True."""
+        return json.dumps(
+            server.delete_marginalia(note_id, hard=hard), default=str
+        )
+
+    @mcp.tool(annotations=_write)
+    def restore_marginalia(note_id: _note_id) -> str:
+        """Restore a soft-deleted note (clear its archived_at)."""
+        return json.dumps(server.restore_marginalia(note_id), default=str)
 
     mcp.run(transport="stdio")

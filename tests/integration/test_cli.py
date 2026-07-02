@@ -478,3 +478,32 @@ def test_show_rejects_ambiguous_prefix(temp_dir: Path):
     finally:
         os.chdir(original_cwd)
         close_db()
+
+
+def test_archive_restore_cli(temp_dir: Path):
+    """R6: ptk archive/restore soft-delete a photo end-to-end."""
+    import os
+
+    from photo_memex.db.session import close_db
+
+    library_dir = temp_dir / "library"
+    library_dir.mkdir()
+    pid = "abcd" + "e" * 60
+    _init_library_with_photos(library_dir, [pid])
+    close_db()
+
+    original_cwd = os.getcwd()
+    os.chdir(library_dir)
+    try:
+        r = runner.invoke(app, ["archive", pid[:12]])
+        assert r.exit_code == 0, r.output
+        assert "Archived" in r.output
+        assert runner.invoke(app, ["q", "--format", "count"]).output.strip() == "0"
+
+        r2 = runner.invoke(app, ["restore", pid[:12]])
+        assert r2.exit_code == 0, r2.output
+        assert "Restored" in r2.output
+        assert runner.invoke(app, ["q", "--format", "count"]).output.strip() == "1"
+    finally:
+        os.chdir(original_cwd)
+        close_db()

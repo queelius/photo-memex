@@ -420,6 +420,65 @@ def set_metadata(
 
 
 # =============================================================================
+# ptk archive / restore  (soft-delete, R6)
+# =============================================================================
+
+
+@app.command("archive")
+def archive_cmd(
+    photo_id: str = typer.Argument(..., help="Photo ID or hex prefix"),
+    hard: bool = typer.Option(
+        False, "--hard", help="Hard-delete instead of soft-delete (irreversible)"
+    ),
+) -> None:
+    """Soft-delete a photo (hidden from default reads, still resolvable), or --hard to remove it."""
+    _require_library()
+    with session_scope() as session:
+        try:
+            photo = _resolve_photo_prefix(session, photo_id)
+        except ValueError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(1) from exc
+        pid = photo.id
+        if hard:
+            session.delete(photo)
+            console.print(f"[green]Hard-deleted {pid}[/green]")
+        else:
+            photo.archived_at = datetime.now(UTC)
+            console.print(f"[green]Archived {pid}[/green]")
+
+
+@app.command("restore")
+def restore_cmd(
+    photo_id: str = typer.Argument(..., help="Photo ID or hex prefix"),
+) -> None:
+    """Restore a soft-deleted photo (clear its archived_at)."""
+    _require_library()
+    with session_scope() as session:
+        # A restore targets an archived photo, which _resolve_photo_prefix
+        # hides, so resolve across all rows (validated + unambiguous) here.
+        if not _PHOTO_PREFIX_RE.match(photo_id or ""):
+            console.print(
+                "[red]Photo ID or prefix must be 4 to 64 hexadecimal characters[/red]"
+            )
+            raise typer.Exit(1)
+        matches = (
+            session.query(Photo)
+            .filter(Photo.id.startswith(photo_id, autoescape=True))
+            .limit(2)
+            .all()
+        )
+        if not matches:
+            console.print(f"[red]No photo found matching ID prefix: {photo_id}[/red]")
+            raise typer.Exit(1)
+        if len(matches) > 1:
+            console.print(f"[red]Ambiguous prefix '{photo_id}' matches multiple photos[/red]")
+            raise typer.Exit(1)
+        matches[0].archived_at = None
+        console.print(f"[green]Restored {matches[0].id}[/green]")
+
+
+# =============================================================================
 # 6. ptk stats
 # =============================================================================
 

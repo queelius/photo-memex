@@ -794,3 +794,105 @@ class TestBatchSetCaption:
         server.batch_set_caption([photo_id], "Verified batch caption")
         photo = server.get_photo(photo_id)
         assert photo["caption"] == "Verified batch caption"
+
+
+# ── get_record (federation URI resolution, R5) ──────────────────────────────
+
+
+class TestGetRecord:
+    def test_resolve_photo_uri(self, server, photo_id):
+        result = server.get_record(f"photo-memex://photo/{photo_id}")
+        assert result["kind"] == "photo"
+        assert result["record"]["photo_id"] == photo_id
+        assert result["archived"] is False
+        assert "fragment" not in result
+
+    def test_strips_and_echoes_fragment(self, server, photo_id):
+        result = server.get_record(
+            f"photo-memex://photo/{photo_id}#region=0,0,10,10"
+        )
+        assert result["kind"] == "photo"
+        assert result["record"]["photo_id"] == photo_id
+        assert result["fragment"] == "region=0,0,10,10"
+
+    def test_photo_not_found(self, server):
+        result = server.get_record("photo-memex://photo/" + "0" * 64)
+        assert result["error"] == "not_found"
+        assert result["kind"] == "photo"
+
+    def test_marginalia_not_found(self, server):
+        result = server.get_record("photo-memex://marginalia/999999")
+        assert result["error"] == "not_found"
+        assert result["kind"] == "marginalia"
+
+    def test_invalid_scheme(self, server):
+        result = server.get_record("llm-memex://conversation/abc")
+        assert result["error"] == "invalid_uri"
+
+    def test_unknown_kind(self, server):
+        result = server.get_record("photo-memex://widget/abc")
+        assert result["error"] == "invalid_uri"
+
+
+# ── archive / restore + marginalia CRUD (R6) ────────────────────────────────
+
+
+class TestArchivePhoto:
+    def test_archive_then_restore(self, server, photo_id):
+        r = server.archive_photo(photo_id)
+        assert r["status"] == "ok"
+        assert r["archived_at"] is not None
+        # get_record still resolves it, flagged archived
+        rec = server.get_record(f"photo-memex://photo/{photo_id}")
+        assert rec["archived"] is True
+
+        r2 = server.restore_photo(photo_id)
+        assert r2["archived_at"] is None
+        rec2 = server.get_record(f"photo-memex://photo/{photo_id}")
+        assert rec2["archived"] is False
+
+    def test_hard_delete(self, server, photo_id):
+        r = server.archive_photo(photo_id, hard=True)
+        assert r["deleted"] == "hard"
+        rec = server.get_record(f"photo-memex://photo/{photo_id}")
+        assert rec["error"] == "not_found"
+
+
+class TestMarginaliaCrud:
+    def test_full_lifecycle(self, server, photo_id):
+        added = server.add_marginalia(photo_id, "a first note")
+        assert added["status"] == "ok"
+        nid = added["id"]
+
+        assert any(n["id"] == nid for n in server.list_marginalia(photo_id))
+        assert server.get_marginalia(nid)["body"] == "a first note"
+
+        server.update_marginalia(nid, "edited note")
+        assert server.get_marginalia(nid)["body"] == "edited note"
+
+        # resolvable by URI
+        rec = server.get_record(f"photo-memex://marginalia/{nid}")
+        assert rec["kind"] == "marginalia"
+        assert rec["record"]["body"] == "edited note"
+
+        # soft-delete hides from default list, include_archived shows it
+        server.delete_marginalia(nid)
+        assert all(n["id"] != nid for n in server.list_marginalia(photo_id))
+        assert any(
+            n["id"] == nid
+            for n in server.list_marginalia(photo_id, include_archived=True)
+        )
+
+        server.restore_marginalia(nid)
+        assert any(n["id"] == nid for n in server.list_marginalia(photo_id))
+
+    def test_add_empty_body_raises(self, server, photo_id):
+        with pytest.raises(ValueError):
+            server.add_marginalia(photo_id, "   ")
+
+    def test_note_survives_photo_hard_delete(self, server, photo_id):
+        nid = server.add_marginalia(photo_id, "survives")["id"]
+        server.archive_photo(photo_id, hard=True)
+        got = server.get_marginalia(nid)
+        assert got["body"] == "survives"
+        assert got["photo_id"] is None  # orphaned via ON DELETE SET NULL

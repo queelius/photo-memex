@@ -24,6 +24,15 @@ from photo_memex.db.models import (
 )
 from photo_memex.db.session import session_scope
 
+# URI kind -> the ORM column holding that kind's raw id: the storage side of
+# core.uri.KINDS (which stays SQLAlchemy-free). get_record looks records up
+# through these columns and get_record_kinds declares them; a test pins the
+# keys to KINDS.
+RECORD_KEY_COLUMNS: dict[str, Any] = {
+    "photo": Photo.id,
+    "marginalia": Marginalia.id,
+}
+
 # Cap rows returned by the read-only run_sql tool so a wide/large SELECT
 # cannot blow the LLM context. Callers paginate with LIMIT/OFFSET.
 _MAX_SQL_ROWS = 1000
@@ -425,7 +434,7 @@ class PtkServer:
             if parsed.kind == "photo":
                 photo = (
                     session.query(Photo)
-                    .filter(Photo.id == parsed.id)
+                    .filter(RECORD_KEY_COLUMNS["photo"] == parsed.id)
                     .first()
                 )
                 if photo is None:
@@ -437,7 +446,7 @@ class PtkServer:
                 if parsed.id.isdigit():
                     m = (
                         session.query(Marginalia)
-                        .filter(Marginalia.id == int(parsed.id))
+                        .filter(RECORD_KEY_COLUMNS["marginalia"] == int(parsed.id))
                         .first()
                     )
                 if m is None:
@@ -460,6 +469,19 @@ class PtkServer:
         if parsed.fragment:
             result["fragment"] = parsed.fragment
         return result
+
+    def get_record_kinds(self) -> dict[str, Any]:
+        """The record kinds get_record resolves, with tables and id columns."""
+        return {
+            "kinds": [
+                {
+                    "kind": kind,
+                    "table": column.class_.__tablename__,
+                    "id_column": column.property.columns[0].name,
+                }
+                for kind, column in RECORD_KEY_COLUMNS.items()
+            ]
+        }
 
     def list_tags(self) -> list[dict[str, Any]]:
         """Return all tags with photo counts."""
@@ -852,6 +874,11 @@ def run_mcp_server(db_path: str) -> None:
     ) -> str:
         """Resolve a photo-memex:// URI to its record (federation entrypoint)."""
         return json.dumps(server.get_record(uri), indent=2, default=str)
+
+    @mcp.tool(annotations=_read)
+    def get_record_kinds() -> dict:
+        """Declare the URI kinds this archive resolves (photo-memex://<kind>/<id>) and the table and id column backing each. Part of the *-memex archive contract."""
+        return server.get_record_kinds()
 
     @mcp.tool(annotations=_read)
     def list_tags() -> str:

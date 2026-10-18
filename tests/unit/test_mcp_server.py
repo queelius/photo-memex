@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime
 
 import pytest
+from sqlalchemy import text
 
 from photo_memex.core.config import get_config
 from photo_memex.db.models import Album, Event, Face, Person, Photo, Tag
@@ -797,6 +798,26 @@ class TestBatchSetCaption:
 
 
 # ── get_record (federation URI resolution, R5) ──────────────────────────────
+
+
+class TestRecordKinds:
+    def test_keys_match_uri_kinds(self):
+        from photo_memex.core.uri import KINDS
+        from photo_memex.mcp.server import RECORD_KEY_COLUMNS
+
+        assert set(RECORD_KEY_COLUMNS) == KINDS
+
+    def test_every_declared_kind_resolves(self, server, photo_id):
+        server.add_marginalia(photo_id, "a note")
+        kinds = server.get_record_kinds()["kinds"]
+        assert {k["kind"] for k in kinds} == {"photo", "marginalia"}
+        with session_scope() as session:
+            for k in kinds:
+                raw_id = session.execute(
+                    text(f'SELECT `{k["id_column"]}` FROM `{k["table"]}` LIMIT 1')
+                ).scalar_one()
+                result = server.get_record(f"photo-memex://{k['kind']}/{raw_id}")
+                assert "error" not in result, (k, result)
 
 
 class TestGetRecord:

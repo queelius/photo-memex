@@ -47,37 +47,20 @@ Round-trip fidelity:
 
 from __future__ import annotations
 
-import gzip
-import io
-import json
-import tarfile
-import zipfile
-from collections.abc import Iterable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 
+from arkiv import iter_jsonl, peek_jsonl
+
+from photo_memex.exports.arkiv import MEMBER
+
 
 # ---------------------------------------------------------------------------
 # Detection
 # ---------------------------------------------------------------------------
-
-
-def _jsonl_peek_first_record(reader) -> Optional[Dict[str, Any]]:
-    try:
-        for line in reader:
-            if isinstance(line, bytes):
-                line = line.decode("utf-8")
-            line = line.strip()
-            if not line:
-                continue
-            rec = json.loads(line)
-            return rec if isinstance(rec, dict) else None
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return None
-    return None
 
 
 _KINDS = ("photo", "marginalia")
@@ -102,111 +85,10 @@ def _is_photo_memex_record(rec: Dict[str, Any]) -> bool:
 
 def detect(path: str | Path) -> bool:
     """Return True if *path* looks like an arkiv bundle we can read."""
-    p = Path(path)
-    if not p.exists():
+    if not Path(path).exists():
         return False
-
-    if p.is_dir():
-        jsonl = p / "records.jsonl"
-        if not jsonl.is_file():
-            return False
-        with open(jsonl, encoding="utf-8") as f:
-            rec = _jsonl_peek_first_record(f)
-        return rec is not None and _is_photo_memex_record(rec)
-
-    lower = str(p).lower()
-    if lower.endswith(".zip"):
-        try:
-            with zipfile.ZipFile(p) as zf:
-                if "records.jsonl" not in zf.namelist():
-                    return False
-                with zf.open("records.jsonl") as f:
-                    rec = _jsonl_peek_first_record(f)
-            return rec is not None and _is_photo_memex_record(rec)
-        except (zipfile.BadZipFile, KeyError):
-            return False
-
-    if lower.endswith(".tar.gz") or lower.endswith(".tgz"):
-        try:
-            with tarfile.open(p, "r:gz") as tf:
-                try:
-                    member = tf.getmember("records.jsonl")
-                except KeyError:
-                    return False
-                extracted = tf.extractfile(member)
-                if extracted is None:
-                    return False
-                rec = _jsonl_peek_first_record(extracted)
-            return rec is not None and _is_photo_memex_record(rec)
-        except tarfile.TarError:
-            return False
-
-    if lower.endswith(".jsonl.gz"):
-        try:
-            with gzip.open(p, "rt", encoding="utf-8") as f:
-                rec = _jsonl_peek_first_record(f)
-            return rec is not None and _is_photo_memex_record(rec)
-        except (OSError, gzip.BadGzipFile):
-            return False
-
-    if lower.endswith(".jsonl"):
-        try:
-            with open(p, encoding="utf-8") as f:
-                rec = _jsonl_peek_first_record(f)
-            return rec is not None and _is_photo_memex_record(rec)
-        except OSError:
-            return False
-
-    return False
-
-
-# ---------------------------------------------------------------------------
-# Bundle reading
-# ---------------------------------------------------------------------------
-
-
-def _open_jsonl(path: str | Path) -> Iterator[Dict[str, Any]]:
-    p = Path(path)
-    if p.is_dir():
-        with open(p / "records.jsonl", encoding="utf-8") as f:
-            yield from _parse_jsonl_lines(f)
-        return
-    lower = str(p).lower()
-    if lower.endswith(".zip"):
-        with zipfile.ZipFile(p) as zf:
-            with zf.open("records.jsonl") as f:
-                text = io.TextIOWrapper(f, encoding="utf-8")
-                yield from _parse_jsonl_lines(text)
-        return
-    if lower.endswith(".tar.gz") or lower.endswith(".tgz"):
-        with tarfile.open(p, "r:gz") as tf:
-            member = tf.getmember("records.jsonl")
-            extracted = tf.extractfile(member)
-            if extracted is None:
-                return
-            text = io.TextIOWrapper(extracted, encoding="utf-8")
-            yield from _parse_jsonl_lines(text)
-        return
-    if lower.endswith(".jsonl.gz"):
-        with gzip.open(p, "rt", encoding="utf-8") as f:
-            yield from _parse_jsonl_lines(f)
-        return
-    if lower.endswith(".jsonl"):
-        with open(p, encoding="utf-8") as f:
-            yield from _parse_jsonl_lines(f)
-        return
-    raise ValueError(f"unrecognized arkiv bundle: {path!r}")
-
-
-def _parse_jsonl_lines(reader) -> Iterable[Dict[str, Any]]:
-    for line in reader:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            yield json.loads(line)
-        except json.JSONDecodeError:
-            continue
+    rec = peek_jsonl(path, MEMBER)
+    return rec is not None and _is_photo_memex_record(rec)
 
 
 # ---------------------------------------------------------------------------
@@ -300,7 +182,7 @@ def import_arkiv(path: str | Path, *, merge: bool = False) -> Dict[str, int]:
         "marginalia_orphaned": 0,
     }
 
-    records = list(_open_jsonl(path))
+    records = list(iter_jsonl(path, MEMBER))
 
     with session_scope() as session:
         # Pass 1: photos. Insert-or-skip on SHA256 PK.

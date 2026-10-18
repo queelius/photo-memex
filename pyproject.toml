@@ -25,6 +25,8 @@ classifiers = [
 ]
 
 dependencies = [
+    # Bundle I/O (write_bundle / iter_jsonl) for the arkiv exporter and importer.
+    "arkiv>=0.4",
     "typer>=0.9.0",
     "rich>=13.0.0",
     "sqlalchemy>=2.0.0",

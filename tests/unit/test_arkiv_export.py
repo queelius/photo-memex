@@ -383,15 +383,78 @@ class TestArkivMarginalia:
 class TestArkivBundles:
     """Bundle-format support (directory / .zip / .tar.gz)."""
 
-    def test_detect_compression(self):
-        from photo_memex.exports.arkiv import _detect_compression
+    @pytest.mark.parametrize(
+        "name, kind",
+        [
+            ("out", "dir"),
+            ("out.zip", "zip"),
+            ("out.ZIP", "zip"),
+            ("out.tar.gz", "tar.gz"),
+            ("out.TAR.GZ", "tar.gz"),
+            ("out.tgz", "tar.gz"),
+        ],
+    )
+    def test_format_chosen_by_extension(
+        self, library_with_tagged_photo, tmp_path, name, kind
+    ):
+        """The bundle layout follows the output extension, case-insensitively."""
+        from photo_memex.exports.arkiv import export_arkiv
 
-        assert _detect_compression("out") == "dir"
-        assert _detect_compression("out.zip") == "zip"
-        assert _detect_compression("out.ZIP") == "zip"
-        assert _detect_compression("out.tar.gz") == "tar.gz"
-        assert _detect_compression("out.TAR.GZ") == "tar.gz"
-        assert _detect_compression("out.tgz") == "tar.gz"
+        out = tmp_path / name
+        export_arkiv(out)
+        if kind == "dir":
+            assert out.is_dir()
+            assert (out / "records.jsonl").is_file()
+        elif kind == "zip":
+            assert zipfile.is_zipfile(out)
+        else:
+            assert tarfile.is_tarfile(out)
+            with tarfile.open(out, "r:gz") as tf:
+                assert "records.jsonl" in tf.getnames()
+
+    @pytest.mark.parametrize("ext", ["zip", "tar.gz"])
+    def test_two_exports_are_byte_identical(
+        self, library_with_tagged_photo, tmp_path, monkeypatch, ext
+    ):
+        """Exporting the same library twice yields identical bundle bytes.
+
+        The README stamps the export time, so the clock is frozen; with it
+        fixed, the whole bundle (every member plus the container's own
+        timestamps and headers) must be reproducible.
+        """
+        from datetime import UTC, datetime
+
+        import photo_memex.exports.arkiv as arkiv_mod
+
+        class _FrozenDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 1, 1, tzinfo=UTC)
+
+        monkeypatch.setattr(arkiv_mod, "datetime", _FrozenDatetime)
+
+        out1 = tmp_path / f"a.{ext}"
+        out2 = tmp_path / f"b.{ext}"
+        arkiv_mod.export_arkiv(out1)
+        arkiv_mod.export_arkiv(out2)
+        assert out1.read_bytes() == out2.read_bytes()
+
+    @pytest.mark.parametrize(
+        "title",
+        ["Trip: Paris 2026", "# not a comment", "it's \"quoted\"", "- dash"],
+    )
+    def test_readme_title_is_valid_yaml(
+        self, library_with_tagged_photo, tmp_path, title
+    ):
+        """A title with YAML-significant characters round-trips verbatim."""
+        from photo_memex.exports.arkiv import export_arkiv
+
+        out = tmp_path / "arkiv-out"
+        export_arkiv(out, title=title)
+        frontmatter = yaml.safe_load(
+            (out / "README.md").read_text().split("---\n", 2)[1]
+        )
+        assert frontmatter["name"] == title
 
     def test_zip_bundle(self, library_with_tagged_photo, tmp_path):
         from photo_memex.exports.arkiv import export_arkiv

@@ -194,6 +194,22 @@ class TestDetect:
         assert detect(foreign) is False
 
 
+    def test_detect_rejects_bundle_without_records(self, tmp_path):
+        import tarfile
+        import zipfile
+
+        from photo_memex.importers.arkiv import detect
+
+        zpath = tmp_path / "empty.zip"
+        with zipfile.ZipFile(zpath, "w") as zf:
+            zf.writestr("README.md", "no records here")
+        tpath = tmp_path / "empty.tar.gz"
+        with tarfile.open(tpath, "w:gz"):
+            pass
+        assert detect(zpath) is False
+        assert detect(tpath) is False
+
+
 # ---------------------------------------------------------------------------
 # Round-trip
 # ---------------------------------------------------------------------------
@@ -316,6 +332,26 @@ class TestImportRoundTrip:
         stats = import_arkiv(out, merge=True)
         # --merge is a no-op today — same outcome.
         assert stats["photos_seen"] == 1
+
+    @pytest.mark.parametrize("ext", ["zip", "tar.gz"])
+    def test_import_bundle_without_records_raises(
+        self, test_library, tmp_path, ext
+    ):
+        """A packed bundle missing records.jsonl fails loudly, as a directory does."""
+        import tarfile
+        import zipfile
+
+        from photo_memex.importers.arkiv import import_arkiv
+
+        out = tmp_path / f"empty.{ext}"
+        if ext == "zip":
+            with zipfile.ZipFile(out, "w") as zf:
+                zf.writestr("README.md", "no records here")
+        else:
+            with tarfile.open(out, "w:gz"):
+                pass
+        with pytest.raises(FileNotFoundError):
+            import_arkiv(out)
 
     def test_orphan_marginalia_created_with_null_photo_id(
         self, populated_library, db_session, tmp_path
